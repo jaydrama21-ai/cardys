@@ -11,6 +11,8 @@ import { priceRaw, priceGraded, gradedAbs, histFor } from "./pricing.js";
 import { recognize } from "./recognize.js";
 import { loadLiveCatalog } from "./catalog.js";
 import { PRODUCTS } from "./mock.js";
+import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceCompsFromPg } from "./store/pg.js";
+import { warmPriceCache } from "./priceCache.js";
 
 const app = express();
 app.use(cors());
@@ -71,23 +73,36 @@ app.post("/recognize", async (req, res) => {
 });
 
 const port = Number(process.env.PORT || 8787);
-app.listen(port, () => {
+app.listen(port, async () => {
   console.log(`RipReport backend on :${port}  (mode=${process.env.DATA_MODE || "mock"}, cards=${db.cards().length})`);
-  // In live mode, fetch the real catalog (with card images) on boot and swap it
-  // into the store. Until it finishes, /cards serves the mock set. Fully
-  // fallback-safe: any failure keeps the mock catalog.
-  if (process.env.DATA_MODE === "live" && process.env.POKEMONTCG_API_KEY) {
+  // In live mode: serve the persisted catalog immediately (if Postgres has one),
+  // then refresh from the Pokémon TCG API and persist. The API key is optional —
+  // keyless requests work with lower rate limits. Fully fallback-safe: any
+  // failure keeps whatever catalog is already loaded (persisted or mock).
+  if (process.env.DATA_MODE === "live") {
+    if (pgAvailable()) {
+      await initSchema();
+      const persisted = await loadCatalogFromPg();
+      if (persisted) {
+        loadCatalog({ cards: persisted.cards, sets: persisted.sets, products: PRODUCTS });
+        console.log(`Serving persisted catalog: ${persisted.cards.length} cards.`);
+      }
+      warmPriceCache(await loadPriceCompsFromPg());
+    }
     const setLimit = Number(process.env.CATALOG_SET_LIMIT || 8);
     console.log(`Loading live catalog from Pokémon TCG API (latest ${setLimit} sets)…`);
     loadLiveCatalog(setLimit)
-      .then((cat) => {
+      .then(async (cat) => {
         if (cat.cards.length) {
           loadCatalog({ cards: cat.cards, sets: cat.sets, products: PRODUCTS });
           console.log(`Live catalog loaded: ${cat.cards.length} cards across ${cat.sets.length} sets.`);
+          if (pgAvailable() && (await saveCatalogToPg(cat.cards, cat.sets))) {
+            console.log("Catalog persisted to Postgres.");
+          }
         } else {
-          console.log("Live catalog returned 0 cards — staying on mock.");
+          console.log("Live catalog returned 0 cards — keeping current catalog.");
         }
       })
-      .catch((e) => console.error("Live catalog load failed, staying on mock:", e));
+      .catch((e) => console.error("Live catalog load failed, keeping current catalog:", e));
   }
 });

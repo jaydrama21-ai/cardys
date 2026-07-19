@@ -9,18 +9,25 @@ import "dotenv/config";
 import { loadLiveCatalog } from "../catalog.js";
 import { loadCatalog } from "../db.js";
 import { PRODUCTS } from "../mock.js";
+import { pgAvailable, initSchema, saveCatalogToPg } from "../store/pg.js";
 
 async function main() {
   if (!process.env.POKEMONTCG_API_KEY) {
-    console.log("Set POKEMONTCG_API_KEY first (dev.pokemontcg.io).");
-    return;
+    console.log("No POKEMONTCG_API_KEY set — fetching keyless (lower rate limits).");
   }
   const setLimit = Number(process.env.CATALOG_SET_LIMIT || 8);
   console.log(`Fetching latest ${setLimit} sets from the Pokémon TCG API…`);
   const cat = await loadLiveCatalog(setLimit);
   loadCatalog({ cards: cat.cards, sets: cat.sets, products: PRODUCTS });
   console.log(`Ingested ${cat.cards.length} cards across ${cat.sets.length} sets.`);
-  console.log("For production, UPSERT these into Postgres (schema.sql) instead of memory.");
+  if (pgAvailable()) {
+    await initSchema();
+    if (await saveCatalogToPg(cat.cards, cat.sets)) {
+      console.log("Catalog persisted to Postgres.");
+    }
+  } else {
+    console.log("DATABASE_URL not set — catalog held in memory only.");
+  }
 }
 
 main().catch((e) => {

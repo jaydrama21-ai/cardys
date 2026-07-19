@@ -11,7 +11,7 @@ create table if not exists sets (
 create table if not exists cards (
   id      text primary key,
   name    text not null,
-  set     text not null references sets(name),
+  "set"   text not null references sets(name),
   num     text,
   rarity  text,
   variant text,
@@ -20,15 +20,17 @@ create table if not exists cards (
   langs   text[] not null default '{EN}',
   raw     integer not null default 0,   -- EN raw market, USD
   psa10   integer,                       -- PSA-10 comp, USD
-  chg     real not null default 0        -- 30d % change
+  chg     real not null default 0,       -- 30d % change
+  img     text                           -- card image URL (Pokémon TCG API images.large)
 );
+alter table cards add column if not exists img text;
 create index if not exists cards_name_idx on cards using gin (to_tsvector('english', name));
-create index if not exists cards_set_idx  on cards (set);
+create index if not exists cards_set_idx  on cards ("set");
 
 create table if not exists products (
   id     text primary key,
   name   text not null,
-  set    text not null references sets(name),
+  "set"  text not null references sets(name),
   type   text,
   packs  integer not null default 1,
   msrp   integer,

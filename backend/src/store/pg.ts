@@ -146,6 +146,44 @@ export async function savePriceComp(row: PriceCompRow): Promise<boolean> {
   }
 }
 
+/** Upsert today's history point for (card, kind) — one row per day. */
+export async function savePriceHistoryPoint(cardId: string, kind: string, value: number): Promise<boolean> {
+  const p = await getPool();
+  if (!p) return false;
+  try {
+    await p.query(
+      `insert into price_history (card_id, kind, day, value) values ($1,$2, current_date, $3)
+       on conflict (card_id, kind, day) do update set value = excluded.value`,
+      [cardId, kind, value]
+    );
+    return true;
+  } catch (e) {
+    console.error("price history save failed:", e);
+    return false;
+  }
+}
+
+/** Read all stored daily series, keyed "cardId kind", oldest → newest. */
+export async function loadPriceHistoryFromPg(): Promise<Map<string, number[]>> {
+  const out = new Map<string, number[]>();
+  const p = await getPool();
+  if (!p) return out;
+  try {
+    const q = await p.query(
+      `select card_id, kind, value from price_history order by card_id, kind, day asc`
+    );
+    for (const r of q.rows) {
+      const k = `${r.card_id} ${r.kind}`;
+      const arr = out.get(k) ?? [];
+      arr.push(r.value);
+      out.set(k, arr);
+    }
+    return out;
+  } catch {
+    return out;
+  }
+}
+
 /** Read all cached price comps (server boot → warm the in-memory cache). */
 export async function loadPriceCompsFromPg(): Promise<PriceCompRow[]> {
   const p = await getPool();

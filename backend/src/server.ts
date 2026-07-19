@@ -11,8 +11,8 @@ import { priceRaw, priceGraded, gradedAbs, histFor } from "./pricing.js";
 import { recognize } from "./recognize.js";
 import { loadLiveCatalog } from "./catalog.js";
 import { PRODUCTS } from "./mock.js";
-import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceCompsFromPg } from "./store/pg.js";
-import { warmPriceCache } from "./priceCache.js";
+import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceCompsFromPg, loadPriceHistoryFromPg } from "./store/pg.js";
+import { warmPriceCache, warmHistoryCache, compMeta } from "./priceCache.js";
 
 const app = express();
 app.use(cors());
@@ -47,20 +47,25 @@ app.get("/products/search", (req, res) => res.json(db.searchProducts(String(req.
 app.get("/price/raw/:id", (req, res) => {
   const c = db.cardById(req.params.id);
   if (!c) return res.status(404).json({ error: "unknown card" });
-  return res.json({ id: c.id, lang: asLang(req.query.lang), price: priceRaw(c, asLang(req.query.lang)) });
+  // `meta` is additive: present only when a real cached comp backs the price
+  // (source, comp count, hours since last sale — the app's provenance UI).
+  const meta = compMeta(c.id, "raw");
+  return res.json({ id: c.id, lang: asLang(req.query.lang), price: priceRaw(c, asLang(req.query.lang)), ...(meta ? { meta } : {}) });
 });
 app.get("/price/graded/:id", (req, res) => {
   const c = db.cardById(req.params.id);
   if (!c) return res.status(404).json({ error: "unknown card" });
   const company = asCompany(req.query.company), grade = asGrade(req.query.grade), lang = asLang(req.query.lang);
-  return res.json({ id: c.id, company, grade, lang, price: priceGraded(c, company, grade, lang), abs: gradedAbs(c, grade) });
+  const kind = company === "PSA" ? `psa${String(grade).replace(".", "")}` : `${company.toLowerCase()}${grade === 10 ? "10" : ""}`;
+  const meta = compMeta(c.id, kind);
+  return res.json({ id: c.id, company, grade, lang, price: priceGraded(c, company, grade, lang), abs: gradedAbs(c, grade), ...(meta ? { meta } : {}) });
 });
 app.get("/price/history/:id", (req, res) => {
   const c = db.cardById(req.params.id);
   if (!c) return res.status(404).json({ error: "unknown card" });
   const end = req.query.end ? Number(req.query.end) : priceRaw(c, "EN");
   const chg = req.query.chg ? Number(req.query.chg) : c.chg;
-  return res.json({ id: c.id, series: histFor(end, chg) });
+  return res.json({ id: c.id, series: histFor(end, chg, c) });
 });
 
 // ---- recognition (scan) ----
@@ -88,6 +93,7 @@ app.listen(port, async () => {
         console.log(`Serving persisted catalog: ${persisted.cards.length} cards.`);
       }
       warmPriceCache(await loadPriceCompsFromPg());
+      warmHistoryCache(await loadPriceHistoryFromPg());
     }
     const setLimit = Number(process.env.CATALOG_SET_LIMIT || 8);
     console.log(`Loading live catalog from Pokémon TCG API (latest ${setLimit} sets)…`);

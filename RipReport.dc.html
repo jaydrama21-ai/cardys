@@ -54,19 +54,9 @@
 </template>
 
 <div class="rr-desk" style="min-height: 100vh; width: 100%; display: flex; align-items: center; justify-content: center; padding: 28px 12px; background: radial-gradient(120% 80% at 50% 0%, #14161f 0%, #05060a 62%);">
-  <div class="rr-bezel" style="position: relative; width: 390px; height: 844px; border-radius: 54px; padding: 12px; background: linear-gradient(160deg, #23262f, #0c0d12 55%); box-shadow: 0 40px 90px -30px rgba(0,0,0,0.9), 0 0 0 2px #05060a, inset 0 0 0 2px #2b2e39;">
+  <style>@media (max-width: 520px){ body{padding:0 !important;} .rr-bezel{width:100% !important; height:100dvh !important; border-radius:0 !important; padding:0 !important; box-shadow:none !important; background:none !important;} .rr-screen{border-radius:0 !important;} }</style>
+<div class="rr-bezel" style="position: relative; width: 390px; height: 844px; border-radius: 54px; padding: 12px; background: linear-gradient(160deg, #23262f, #0c0d12 55%); box-shadow: 0 40px 90px -30px rgba(0,0,0,0.9), 0 0 0 2px #05060a, inset 0 0 0 2px #2b2e39;">
     <div class="rr-screen" style="position: relative; width: 100%; height: 100%; border-radius: 43px; overflow: hidden; background: #0B0D13;">
-
-      <!-- status bar -->
-      <div style="position: absolute; top: 0; left: 0; right: 0; height: 52px; z-index: 40; display: flex; align-items: center; justify-content: space-between; padding: 16px 30px 0; pointer-events: none;">
-        <span style="font-family:'JetBrains Mono',monospace; font-size: 14px; font-weight: 600; color: #E8E9F0; font-variant-numeric: tabular-nums;">9:41</span>
-        <div style="width: 122px; height: 30px; position: absolute; left: 50%; transform: translateX(-50%); top: 12px; background: #000; border-radius: 18px;"></div>
-        <div style="display: flex; align-items: center; gap: 6px; color: #E8E9F0;">
-          <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
-          <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><path d="M8.5 2.3c2.2 0 4.2.8 5.7 2.2l1.3-1.4A10.3 10.3 0 0 0 8.5.3 10.3 10.3 0 0 0 1 3.1l1.3 1.4A8.2 8.2 0 0 1 8.5 2.3Zm0 3.4c1.3 0 2.5.5 3.4 1.3l1.3-1.4a7 7 0 0 0-9.4 0l1.3 1.4c.9-.8 2.1-1.3 3.4-1.3Zm0 3.3L10.2 12H6.8L8.5 10Z"/></svg>
-          <div style="display:flex; align-items:center; gap:2px;"><div style="width:22px; height:11px; border:1px solid rgba(232,233,240,0.5); border-radius:3px; padding:1px;"><div style="width:70%; height:100%; background:#E8E9F0; border-radius:1px;"></div></div><div style="width:1.5px; height:4px; background:rgba(232,233,240,0.5); border-radius:1px;"></div></div>
-        </div>
-      </div>
 
       <!-- screens -->
       <div data-screen-scroll class="rr-scroll" style="position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; padding-top: 52px; padding-bottom: {{ scrollPad }};">
@@ -1317,7 +1307,7 @@
             <span onClick="{{ back }}" style="cursor:pointer; color:#8B90A8; display:flex;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></span>
             <span style="flex:1; min-width:0; font-size:15px; font-weight:600; color:#E8E9F0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ selected.name }}</span>
             <sc-if value="{{ selectedNotOwned }}" hint-placeholder-val="{{ true }}">
-            <span onClick="{{ addSelectedToCollection }}" title="Add to collection" style="cursor:pointer; flex-shrink:0; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:rgba(87,217,163,0.14); border:1px solid rgba(87,217,163,0.45); color:#57D9A3;">
+            <span onClick="{{ openPaidCard }}" title="Add to collection" style="cursor:pointer; flex-shrink:0; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:rgba(87,217,163,0.14); border:1px solid rgba(87,217,163,0.45); color:#57D9A3;">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             </span>
             </sc-if>
@@ -1549,12 +1539,11 @@
 
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px;">
             <sc-if value="{{ selectedNotOwned }}" hint-placeholder-val="{{ false }}">
-            <button onClick="{{ addSelectedToCollection }}" style="border:none; border-radius:12px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:600; color:#0B0D13; background:#F5C542; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add to collection</button>
+            <button onClick="{{ openPaidCard }}" style="border:none; border-radius:12px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:600; color:#0B0D13; background:#F5C542; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Add to collection</button>
             </sc-if>
             <sc-if value="{{ selectedOwned }}" hint-placeholder-val="{{ true }}">
             <button onClick="{{ sellSelected }}" style="border:none; border-radius:12px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:600; color:#0B0D13; background:#F5C542; cursor:pointer;">Sell this card</button>
             </sc-if>
-            <button style="border:1px solid #1D2130; border-radius:12px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:600; color:#E8E9F0; background:#12141D; cursor:pointer;">List · TCGplayer</button>
           </div>
           <sc-if value="{{ selectedOwned }}" hint-placeholder-val="{{ false }}">
           <div style="margin-top:10px; display:flex; align-items:center; justify-content:center; gap:7px; font-size:12px; color:#57D9A3;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>In your collection</div>
@@ -1674,6 +1663,12 @@
           <div style="display:flex; align-items:center; gap:12px; margin: 4px 0 18px;">
             <span onClick="{{ back }}" style="cursor:pointer; color:#8B90A8; display:flex;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></span>
             <span style="flex:1; min-width:0; font-size:15px; font-weight:600; color:#E8E9F0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ product.name }}</span>
+            <sc-if value="{{ productLogged }}" hint-placeholder-val="{{ false }}">
+            <span title="In collection" style="flex-shrink:0; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:rgba(87,217,163,0.10); border:1px solid rgba(87,217,163,0.3); color:#57D9A3;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+            </sc-if>
+            <sc-if value="{{ productNotLogged }}" hint-placeholder-val="{{ true }}">
+            <span onClick="{{ openPaidSealed }}" title="Log sealed hold" style="cursor:pointer; flex-shrink:0; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:rgba(87,217,163,0.14); border:1px solid rgba(87,217,163,0.45); color:#57D9A3;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+            </sc-if>
           </div>
 
           <div style="display:flex; gap:16px;">
@@ -1743,9 +1738,8 @@
             </sc-for>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px;">
-            <button onClick="{{ ripProduct }}" style="border:1px solid #1D2130; border-radius:13px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:700; color:#E8E9F0; background:#12141D; cursor:pointer;">Rip it</button>
-            <button onClick="{{ logProductSpend }}" style="border:none; border-radius:13px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:700; color:#0B0D13; background:#F5C542; cursor:pointer;">Log sealed hold</button>
+          <div style="display:grid; grid-template-columns:1fr; gap:10px; margin-top:18px;">
+            <button onClick="{{ ripProduct }}" style="flex:1; border:1px solid #1D2130; border-radius:13px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:700; color:#E8E9F0; background:#12141D; cursor:pointer;">Rip it</button>
           </div>
           <sc-if value="{{ productLogged }}" hint-placeholder-val="{{ false }}">
             <div style="margin-top:12px; display:flex; align-items:center; gap:8px; padding:11px 14px; border-radius:12px; background:rgba(87,217,163,0.10); border:1px solid rgba(87,217,163,0.25);">
@@ -2804,6 +2798,20 @@
         </div>
       </sc-if>
 
+      <!-- what-did-you-pay sheet -->
+      <sc-if value="{{ paidOpen }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closePaid }}" style="position:absolute; inset:0; z-index:60; background:rgba(5,6,10,0.82); backdrop-filter:blur(6px); display:flex; align-items:flex-end;">
+          <div onClick="{{ stopEv }}" style="width:100%; background:#0e1017; border-top:1px solid #1D2130; border-radius:22px 22px 0 0; padding:20px 20px 26px; box-shadow:0 -20px 50px -12px rgba(0,0,0,0.7);">
+            <div style="width:38px; height:4px; border-radius:999px; background:#2a2f42; margin:0 auto 18px;"></div>
+            <div style="font-size:17px; font-weight:700; color:#E8E9F0;">What did you pay?</div>
+            <div style="font-size:12.5px; color:#8B90A8; line-height:1.55; margin-top:6px;">Logs your real cost basis — market is {{ paidMarketStr }} right now.</div>
+            <input type="number" inputmode="decimal" min="0" step="1" value="{{ paidAmt }}" onInput="{{ setPaidAmt }}" style="margin-top:16px; width:100%; box-sizing:border-box; background:#12141D; border:1px solid #1D2130; border-radius:12px; padding:14px 15px; color:#E8E9F0; font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700; outline:none;" />
+            <button onClick="{{ confirmPaid }}" style="margin-top:14px; width:100%; border:none; border-radius:12px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:700; color:#0B0D13; background:#F5C542; cursor:pointer;">Add &middot; paid {{ paidStr }}</button>
+            <div onClick="{{ closePaid }}" style="margin-top:14px; text-align:center; font-size:13px; color:#8B90A8; cursor:pointer;">Cancel</div>
+          </div>
+        </div>
+      </sc-if>
+
       <!-- remove-from-collection reason sheet -->
       <sc-if value="{{ removeOpen }}" hint-placeholder-val="{{ false }}">
         <div onClick="{{ closeRemove }}" style="position:absolute; inset:0; z-index:60; background:rgba(5,6,10,0.82); backdrop-filter:blur(6px); display:flex; align-items:flex-end;">
@@ -3289,6 +3297,9 @@ class Component extends DCLogic {
       selLang: this.deviceLang,
       selGrader: 'Raw',
       selGrade: 10,
+      paidOpen: false,
+      paidAmt: 0,
+      paidKind: 'card',
       searchQuery: '',
       searchTab: 'singles',
       searchLang: 'All',
@@ -4287,6 +4298,31 @@ class Component extends DCLogic {
     const c = this.cardById(sel.cardId); if (!c) return;
     const card = { cardId:c.id, name:c.name, set:c.set, variant:c.variant, tier:c.tier, value:c.raw, chase:!!c.chase, id:'add-'+c.id+'-'+Date.now().toString(36), lang:'EN', grade:null };
     this.setState(st => ({ pulled:[...st.pulled, card] }));
+  };
+
+  // "What did you pay?" flow — adds log real cost basis, not assumed market.
+  openPaidCard = () => {
+    const sel = this.state.selected; if (!sel || !sel.cardId) return;
+    const c = this.cardById(sel.cardId); if (!c) return;
+    this.setState({ paidOpen: true, paidKind: 'card', paidAmt: Math.round(c.raw) });
+  };
+  openPaidSealed = () => {
+    const p = this.state.product; if (!p) return;
+    this.setState({ paidOpen: true, paidKind: 'sealed', paidAmt: Math.round(p.market) });
+  };
+  setPaidAmt = (e) => { const v = parseFloat(e.target.value); this.setState({ paidAmt: isNaN(v) ? 0 : v }); };
+  closePaid = () => this.setState({ paidOpen: false });
+  confirmPaid = () => {
+    const st = this.state;
+    const paid = Math.max(0, Math.round(st.paidAmt || 0));
+    if (st.paidKind === 'sealed') {
+      this.setState(s => ({ spent: s.spent + paid, productLogged: true, paidOpen: false }));
+      return;
+    }
+    const sel = st.selected; if (!sel || !sel.cardId) return this.setState({ paidOpen: false });
+    const c = this.cardById(sel.cardId); if (!c) return this.setState({ paidOpen: false });
+    const card = { cardId:c.id, name:c.name, set:c.set, variant:c.variant, tier:c.tier, value:c.raw, chase:!!c.chase, id:'add-'+c.id+'-'+Date.now().toString(36), lang:'EN', grade:null, cost: paid };
+    this.setState(s => ({ pulled:[...s.pulled, card], paidOpen: false }));
   };
 
   submitGrading = () => {
@@ -5374,6 +5410,13 @@ class Component extends DCLogic {
       quickRemove: this.quickRemove,
       removeOpen: !!st.removeCard, removeName: st.removeCard ? st.removeCard.name : '',
       openRemoveSelected: this.openRemoveSelected, closeRemove: this.closeRemove,
+      paidOpen: st.paidOpen, closePaid: this.closePaid, confirmPaid: this.confirmPaid, setPaidAmt: this.setPaidAmt,
+      openPaidCard: this.openPaidCard, openPaidSealed: this.openPaidSealed,
+      paidAmt: st.paidAmt, paidStr: this.money(Math.round(st.paidAmt || 0)),
+      paidMarketStr: this.money(st.paidKind === 'sealed'
+        ? Math.round((st.product && st.product.market) || 0)
+        : Math.round(((st.selected && st.selected.cardId && this.cardById(st.selected.cardId)) || { raw: 0 }).raw)),
+      productNotLogged: !st.productLogged,
       removeReasons: ['Traded','Ripped it open','Lost / misplaced','Damaged','Gave away','Other'].map(r => ({ label:r, pick: () => this.confirmRemove(r) })),
       quickName: st.quickCard ? st.quickCard.name : '', quickSetStr: st.quickCard ? st.quickCard.set : '',
       quickPriceStr: st.quickCard ? this.money(st.quickCard.value) : '',

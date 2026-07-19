@@ -36,6 +36,13 @@ function mapCard(c: any): Card {
         c?.cardmarket?.prices?.averageSellPrice ??
         1
     ) || 1;
+  const img = c?.images?.large ?? c?.images?.small;
+  // Second image URL on the classic pokemontcg.io CDN — the two image hosts
+  // fail independently, and the app's art slot layers both.
+  const setId =
+    c?.set?.id ??
+    (typeof c.id === "string" && c.id.includes("-") ? c.id.slice(0, c.id.lastIndexOf("-")) : null);
+  const img2 = setId && c.number ? `https://images.pokemontcg.io/${setId}/${c.number}_hires.png` : undefined;
   return {
     id: c.id,
     name: c.name,
@@ -49,7 +56,8 @@ function mapCard(c: any): Card {
     raw: rawSeed,
     psa10: undefined, // refreshPrices.ts fills real graded comps
     chg: 0,
-    img: c?.images?.large ?? c?.images?.small,
+    img,
+    img2: img2 && img2 !== img ? img2 : undefined,
   };
 }
 
@@ -108,7 +116,7 @@ export async function loadCatalogFromMirror(setLimit = 8): Promise<{ cards: Card
       const cr = await fetch(`${MIRROR}/cards/en/${s.id}.json`, { signal: AbortSignal.timeout(60_000) });
       if (!cr.ok) throw new Error(`responded ${cr.status}`);
       const raw: any[] = await cr.json();
-      cards.push(...raw.map((c) => mapCard({ ...c, set: { name: s.name, printedTotal: s.printedTotal } })));
+      cards.push(...raw.map((c) => mapCard({ ...c, set: { id: s.id, name: s.name, printedTotal: s.printedTotal } })));
     } catch (e) {
       console.error(`catalog: mirror skipping set ${s.name} (${s.id}):`, (e as Error).message);
     }

@@ -37,12 +37,19 @@ export async function initSchema(): Promise<boolean> {
   const p = await getPool();
   if (!p) return false;
   try {
-    const { readFileSync } = await import("node:fs");
+    const { readFileSync, existsSync } = await import("node:fs");
     const { fileURLToPath } = await import("node:url");
     const { dirname, join } = await import("node:path");
     const here = dirname(fileURLToPath(import.meta.url));
-    const sql = readFileSync(join(here, "..", "schema.sql"), "utf8");
-    await p.query(sql);
+    // Running from src/ the schema sits next to us; from dist/ it lives in
+    // src/ (tsc doesn't copy .sql, and the build's cp is belt-and-braces).
+    const candidates = [
+      join(here, "..", "schema.sql"),
+      join(here, "..", "..", "src", "schema.sql"),
+    ];
+    const path = candidates.find((c) => existsSync(c));
+    if (!path) throw new Error(`schema.sql not found (tried ${candidates.join(", ")})`);
+    await p.query(readFileSync(path, "utf8"));
     return true;
   } catch (e) {
     console.error("schema init failed:", e);
@@ -57,7 +64,7 @@ export async function loadCatalogFromPg(): Promise<{ cards: Card[]; sets: CardSe
   try {
     const setsQ = await p.query(`select code, name, released from sets order by released desc`);
     const cardsQ = await p.query(
-      `select id, name, "set", num, rarity, variant, tier, chase, langs, raw, psa10, chg, img from cards`
+      `select id, name, "set", num, rarity, variant, tier, chase, langs, raw, psa10, chg, img, img2 from cards`
     );
     if (!cardsQ.rows.length) return null;
     const cards: Card[] = cardsQ.rows.map((r: any) => ({
@@ -74,6 +81,7 @@ export async function loadCatalogFromPg(): Promise<{ cards: Card[]; sets: CardSe
       psa10: r.psa10 ?? undefined,
       chg: r.chg,
       img: r.img ?? undefined,
+      img2: r.img2 ?? undefined,
     }));
     const sets: CardSet[] = setsQ.rows.map((r: any) => ({
       code: r.code,
@@ -104,15 +112,15 @@ export async function saveCatalogToPg(cards: Card[], sets: CardSet[]): Promise<b
     }
     for (const c of cards) {
       await client.query(
-        `insert into cards (id, name, "set", num, rarity, variant, tier, chase, langs, raw, psa10, chg, img)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        `insert into cards (id, name, "set", num, rarity, variant, tier, chase, langs, raw, psa10, chg, img, img2)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
          on conflict (id) do update set
            name = excluded.name, "set" = excluded."set", num = excluded.num,
            rarity = excluded.rarity, variant = excluded.variant, tier = excluded.tier,
            chase = excluded.chase, langs = excluded.langs, raw = excluded.raw,
            psa10 = coalesce(excluded.psa10, cards.psa10), chg = excluded.chg,
-           img = coalesce(excluded.img, cards.img)`,
-        [c.id, c.name, c.set, c.num, c.rarity, c.variant, c.tier, c.chase ?? false, c.langs, c.raw, c.psa10 ?? null, c.chg, c.img ?? null]
+           img = coalesce(excluded.img, cards.img), img2 = coalesce(excluded.img2, cards.img2)`,
+        [c.id, c.name, c.set, c.num, c.rarity, c.variant, c.tier, c.chase ?? false, c.langs, c.raw, c.psa10 ?? null, c.chg, c.img ?? null, c.img2 ?? null]
       );
     }
     await client.query("commit");

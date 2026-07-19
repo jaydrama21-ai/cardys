@@ -128,4 +128,47 @@ export class RipDataClient {
     });
     return r.json(); // { id, confidence, card }
   }
+
+  // --- accounts + holdings sync ---
+  // Token rides in localStorage so a signed-in device stays signed in. After
+  // sign-in, push the device's collection once with syncHoldings(local); from
+  // then on the server copy is the source of truth (fetchHoldings on boot).
+  get token() { return localStorage.getItem("rip_token") || null; }
+
+  async register(email, password) { return this._auth("register", email, password); }
+  async login(email, password) { return this._auth("login", email, password); }
+  async _auth(kind, email, password) {
+    const r = await fetch(`${this.base}/auth/${kind}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const j = await r.json();
+    if (j.token) localStorage.setItem("rip_token", j.token);
+    return j; // { token, user } or { error }
+  }
+  logout() { localStorage.removeItem("rip_token"); }
+
+  async me() {
+    if (!this.token) return null;
+    const r = await fetch(`${this.base}/me`, { headers: this._authHeaders() });
+    return r.ok ? r.json() : null;
+  }
+  async fetchHoldings() {
+    if (!this.token) return null;
+    const r = await fetch(`${this.base}/holdings`, { headers: this._authHeaders() });
+    return r.ok ? r.json() : null;
+  }
+  /** Push the full collection (array of {cardId, lang, grade, cost, acquired,
+   *  soldAt, soldPrice}); the server replaces its copy wholesale. */
+  async syncHoldings(holdings) {
+    if (!this.token) return null;
+    const r = await fetch(`${this.base}/holdings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...this._authHeaders() },
+      body: JSON.stringify(holdings),
+    });
+    return r.ok ? r.json() : null;
+  }
+  _authHeaders() { return this.token ? { Authorization: `Bearer ${this.token}` } : {}; }
 }

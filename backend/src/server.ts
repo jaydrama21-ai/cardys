@@ -13,6 +13,7 @@ import { loadLiveCatalog } from "./catalog.js";
 import { PRODUCTS } from "./mock.js";
 import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceCompsFromPg, loadPriceHistoryFromPg } from "./store/pg.js";
 import { warmPriceCache, warmHistoryCache, compMeta } from "./priceCache.js";
+import { register, login, userForToken, getHoldings, putHoldings, warmAccounts } from "./accounts.js";
 
 const app = express();
 app.use(cors());
@@ -68,6 +69,37 @@ app.get("/price/history/:id", (req, res) => {
   return res.json({ id: c.id, series: histFor(end, chg, c) });
 });
 
+// ---- accounts + holdings sync ----
+app.post("/auth/register", async (req, res) => {
+  const { email, password } = req.body ?? {};
+  if (typeof email !== "string" || typeof password !== "string")
+    return res.status(400).json({ error: "expected { email, password }" });
+  const out = await register(email, password);
+  return "error" in out ? res.status(400).json(out) : res.json(out);
+});
+app.post("/auth/login", async (req, res) => {
+  const { email, password } = req.body ?? {};
+  if (typeof email !== "string" || typeof password !== "string")
+    return res.status(400).json({ error: "expected { email, password }" });
+  const out = await login(email, password);
+  return "error" in out ? res.status(401).json(out) : res.json(out);
+});
+app.get("/me", (req, res) => {
+  const user = userForToken(req.headers.authorization);
+  return user ? res.json(user) : res.status(401).json({ error: "unauthorized" });
+});
+app.get("/holdings", (req, res) => {
+  const user = userForToken(req.headers.authorization);
+  if (!user) return res.status(401).json({ error: "unauthorized" });
+  return res.json(getHoldings(user.id));
+});
+app.put("/holdings", async (req, res) => {
+  const user = userForToken(req.headers.authorization);
+  if (!user) return res.status(401).json({ error: "unauthorized" });
+  const out = await putHoldings(user.id, req.body);
+  return Array.isArray(out) ? res.json(out) : res.status(400).json(out);
+});
+
 // ---- recognition (scan) ----
 app.post("/recognize", async (req, res) => {
   const image = req.body?.image;
@@ -84,9 +116,13 @@ app.listen(port, async () => {
   // then refresh from the Pokémon TCG API and persist. The API key is optional —
   // keyless requests work with lower rate limits. Fully fallback-safe: any
   // failure keeps whatever catalog is already loaded (persisted or mock).
+  // Accounts persist whenever Postgres is configured, regardless of data mode.
+  if (pgAvailable()) {
+    await initSchema();
+    await warmAccounts();
+  }
   if (process.env.DATA_MODE === "live") {
     if (pgAvailable()) {
-      await initSchema();
       const persisted = await loadCatalogFromPg();
       if (persisted) {
         loadCatalog({ cards: persisted.cards, sets: persisted.sets, products: PRODUCTS });

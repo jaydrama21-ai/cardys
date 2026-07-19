@@ -61,14 +61,23 @@ create table if not exists price_history (
 
 -- Per-user collection (move holdings off the device once you add auth).
 create table if not exists users (
-  id         uuid primary key default gen_random_uuid(),
-  email      text unique,
+  id            uuid primary key default gen_random_uuid(),
+  email         text unique,
+  password_hash text,                     -- scrypt salt:hash
+  created_at    timestamptz not null default now()
+);
+alter table users add column if not exists password_hash text;
+
+-- Bearer-token sessions (issued by /auth/register + /auth/login).
+create table if not exists sessions (
+  token      text primary key,
+  user_id    uuid not null references users(id),
   created_at timestamptz not null default now()
 );
 create table if not exists holdings (
   id        uuid primary key default gen_random_uuid(),
   user_id   uuid not null references users(id),
-  card_id   text not null references cards(id),
+  card_id   text not null,  -- app catalog id; not FK'd so holdings can sync before ingest
   lang      text not null default 'EN',
   grade     text,                        -- null = raw
   cost      integer,                     -- acquisition cost basis, USD

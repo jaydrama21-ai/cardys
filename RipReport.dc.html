@@ -4307,8 +4307,11 @@ class Component extends DCLogic {
   // else the striped placeholder. Used by confirm / detail / search rows.
   cardArt(card){
     const img = card && card.img;
+    const img2 = card && card.img2;
+    // Layer both CDNs when a fallback URL exists — CSS shows the next layer
+    // down whenever the top image fails to load.
     return img
-      ? `center/cover no-repeat url("${img}"), #12141D`
+      ? `center/cover no-repeat url("${img}"), ` + (img2 ? `center/cover no-repeat url("${img2}"), ` : '') + `#12141D`
       : 'repeating-linear-gradient(115deg,#171a24,#171a24 5px,#1c2030 5px,#1c2030 10px)';
   }
   componentWillUnmount(){ this.stopCamera(); }

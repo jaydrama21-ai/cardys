@@ -20,6 +20,7 @@ export interface Card {
   psa10?: number; // PSA-10 comp, USD
   chg: number;    // 30-day % change
   img?: string;   // card image URL (Pokémon TCG API `images.large`); optional
+  img2?: string;  // fallback image URL on a different CDN; optional
 }
 
 export interface CardSet {

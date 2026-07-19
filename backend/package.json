@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && cp src/schema.sql dist/schema.sql",
     "ingest:catalog": "tsx src/jobs/ingestCatalog.ts",
     "refresh:prices": "tsx src/jobs/refreshPrices.ts"
   },

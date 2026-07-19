@@ -21,9 +21,11 @@ create table if not exists cards (
   raw     integer not null default 0,   -- EN raw market, USD
   psa10   integer,                       -- PSA-10 comp, USD
   chg     real not null default 0,       -- 30d % change
-  img     text                           -- card image URL (Pokémon TCG API images.large)
+  img     text,                          -- card image URL (Pokémon TCG API images.large)
+  img2    text                           -- fallback image URL on a different CDN
 );
 alter table cards add column if not exists img text;
+alter table cards add column if not exists img2 text;
 create index if not exists cards_name_idx on cards using gin (to_tsvector('english', name));
 create index if not exists cards_set_idx  on cards ("set");
 

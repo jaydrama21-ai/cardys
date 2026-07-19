@@ -14,7 +14,7 @@ import { loadLiveCatalog } from "./catalog.js";
 import { PRODUCTS } from "./mock.js";
 import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceCompsFromPg, loadPriceHistoryFromPg } from "./store/pg.js";
 import { warmPriceCache, warmHistoryCache, compMeta } from "./priceCache.js";
-import { register, login, userForToken, getHoldings, putHoldings, warmAccounts } from "./accounts.js";
+import { register, login, userForToken, getHoldings, putHoldings, warmAccounts, consumeScan, scansLeftFor } from "./accounts.js";
 
 const app = express();
 app.use(cors());
@@ -102,7 +102,8 @@ app.post("/auth/login", async (req, res) => {
 });
 app.get("/me", (req, res) => {
   const user = userForToken(req.headers.authorization);
-  return user ? res.json(user) : res.status(401).json({ error: "unauthorized" });
+  if (!user) return res.status(401).json({ error: "unauthorized" });
+  return res.json({ ...user, scansLeft: scansLeftFor(user.id, null) });
 });
 app.get("/holdings", (req, res) => {
   const user = userForToken(req.headers.authorization);
@@ -120,9 +121,21 @@ app.put("/holdings", async (req, res) => {
 app.post("/recognize", async (req, res) => {
   const image = req.body?.image;
   if (!image || typeof image !== "string") return res.status(400).json({ error: "expected { image: base64 }" });
+  // Meter only real recognition (mock costs nothing and keeps demos free).
+  const metered = (process.env.RECOGNIZE_MODE || "mock") !== "mock";
+  const user = userForToken(req.headers.authorization);
+  let scansLeft: number | null = null;
+  if (metered) {
+    const deviceId = typeof req.headers["x-device-id"] === "string" ? (req.headers["x-device-id"] as string) : null;
+    const gate = await consumeScan(user?.id ?? null, deviceId);
+    if (!gate.allowed) {
+      return res.status(402).json({ error: gate.reason, scansLeft: 0, signin: !user });
+    }
+    scansLeft = gate.scansLeft;
+  }
   const result = await recognize(image);
   const card = result.id ? db.cardById(result.id) : null;
-  return res.json({ ...result, card });
+  return res.json({ ...result, card, ...(scansLeft !== null ? { scansLeft } : {}) });
 });
 
 const port = Number(process.env.PORT || 8787);

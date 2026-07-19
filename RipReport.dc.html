@@ -4287,9 +4287,19 @@ class Component extends DCLogic {
         // MERGE the live catalog under the built-in one — replacing it wiped
         // the imported collection cards (their ids anchor holdings) and left
         // search empty for anything outside the fetched sets.
+        const cardKey = c => (c.name + '|' + c.num).toLowerCase();
         const haveId = new Set(this.db.cards.map(c => c.id));
-        const haveCard = new Set(this.db.cards.map(c => (c.name + '|' + c.num).toLowerCase()));
-        const fresh = cards.filter(c => !haveId.has(c.id) && !haveCard.has((c.name + '|' + c.num).toLowerCase()));
+        const byKey = new Map(cards.map(c => [cardKey(c), c]));
+        // Enrich built-in cards with live art before deduping — the built-in
+        // entry wins the dedupe, so it should carry the live image too.
+        this.db.cards.forEach(c => {
+          const m = byKey.get(cardKey(c));
+          if (!m) return;
+          if (!c.img) { c.img = m.img; c.img2 = c.img2 || m.img2; }
+          else if (!c.img2) c.img2 = m.img || m.img2;
+        });
+        const haveCard = new Set(this.db.cards.map(cardKey));
+        const fresh = cards.filter(c => !haveId.has(c.id) && !haveCard.has(cardKey(c)));
         this.db.cards = this.db.cards.concat(fresh);
         if (Array.isArray(sets) && sets.length) {
           const haveSet = new Set((this.db.sets || []).map(s => s.name));

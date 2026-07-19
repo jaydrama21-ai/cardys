@@ -7,7 +7,12 @@ function headers() {
     return process.env.POKEMONTCG_API_KEY ? { "X-Api-Key": process.env.POKEMONTCG_API_KEY } : {};
 }
 export async function fetchSets(limit = 8) {
-    const r = await fetch(`${API}/sets?orderBy=-releaseDate&pageSize=${limit}`, { headers: headers() });
+    const r = await fetch(`${API}/sets?orderBy=-releaseDate&pageSize=${limit}`, {
+        headers: headers(),
+        signal: AbortSignal.timeout(30_000),
+    });
+    if (!r.ok)
+        throw new Error(`TCG API /sets responded ${r.status}`);
     const j = await r.json();
     return (j.data || []).map((s) => ({
         code: s.ptcgoCode || s.id,
@@ -39,7 +44,12 @@ function mapCard(c) {
     };
 }
 export async function fetchCardsForSet(setId) {
-    const r = await fetch(`${API}/cards?q=set.id:${setId}&pageSize=250`, { headers: headers() });
+    const r = await fetch(`${API}/cards?q=set.id:${setId}&pageSize=250`, {
+        headers: headers(),
+        signal: AbortSignal.timeout(60_000),
+    });
+    if (!r.ok)
+        throw new Error(`TCG API /cards responded ${r.status} for set ${setId}`);
     const j = await r.json();
     return (j.data || []).map(mapCard);
 }
@@ -51,8 +61,8 @@ export async function loadLiveCatalog(setLimit = 8) {
         try {
             cards.push(...(await fetchCardsForSet(s._id)));
         }
-        catch {
-            /* skip a set that fails; keep going */
+        catch (e) {
+            console.error(`catalog: skipping set ${s.name} (${s._id}):`, e.message);
         }
     }
     const sets = setsRaw.map(({ _id, ...rest }) => rest);

@@ -15,6 +15,19 @@ import { register, login, userForToken, getHoldings, putHoldings, warmAccounts }
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "12mb" })); // room for base64 scan frames
+// Serve the PWA build (repo-root deploy/) at / when it exists, so one origin
+// hosts both the app and its API. API routes above/below always win — none of
+// them collide with static file paths.
+{
+    const { existsSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, join } = await import("node:path");
+    const deployDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "deploy");
+    if (existsSync(join(deployDir, "index.html"))) {
+        app.use(express.static(deployDir));
+        console.log(`Serving PWA from ${deployDir} at /`);
+    }
+}
 const asLang = (v) => (["EN", "JP", "KR", "ZH"].includes(v) ? v : "EN");
 const asCompany = (v) => (["PSA", "BGS", "CGC", "SGC", "TAG"].includes(v) ? v : "PSA");
 const asGrade = (v) => {
@@ -123,20 +136,26 @@ app.listen(port, async () => {
             warmHistoryCache(await loadPriceHistoryFromPg());
         }
         const setLimit = Number(process.env.CATALOG_SET_LIMIT || 8);
-        console.log(`Loading live catalog from Pokémon TCG API (latest ${setLimit} sets)…`);
-        loadLiveCatalog(setLimit)
-            .then(async (cat) => {
-            if (cat.cards.length) {
+        const RETRY_MS = 10 * 60 * 1000; // failed fetch → try again in 10 min
+        const REFRESH_MS = 24 * 60 * 60 * 1000; // success → refresh daily
+        const refreshCatalog = async () => {
+            console.log(`Loading live catalog from Pokémon TCG API (latest ${setLimit} sets)…`);
+            try {
+                const cat = await loadLiveCatalog(setLimit);
+                if (!cat.cards.length)
+                    throw new Error("API returned 0 cards");
                 loadCatalog({ cards: cat.cards, sets: cat.sets, products: PRODUCTS });
                 console.log(`Live catalog loaded: ${cat.cards.length} cards across ${cat.sets.length} sets.`);
                 if (pgAvailable() && (await saveCatalogToPg(cat.cards, cat.sets))) {
                     console.log("Catalog persisted to Postgres.");
                 }
+                setTimeout(refreshCatalog, REFRESH_MS);
             }
-            else {
-                console.log("Live catalog returned 0 cards — keeping current catalog.");
+            catch (e) {
+                console.error(`Live catalog load failed (retrying in ${RETRY_MS / 60000} min):`, e.message);
+                setTimeout(refreshCatalog, RETRY_MS);
             }
-        })
-            .catch((e) => console.error("Live catalog load failed, keeping current catalog:", e));
+        };
+        refreshCatalog();
     }
 });

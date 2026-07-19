@@ -1316,6 +1316,16 @@
           <div style="display:flex; align-items:center; gap:12px; margin: 4px 0 18px;">
             <span onClick="{{ back }}" style="cursor:pointer; color:#8B90A8; display:flex;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></span>
             <span style="flex:1; min-width:0; font-size:15px; font-weight:600; color:#E8E9F0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ selected.name }}</span>
+            <sc-if value="{{ selectedNotOwned }}" hint-placeholder-val="{{ true }}">
+            <span onClick="{{ addSelectedToCollection }}" title="Add to collection" style="cursor:pointer; flex-shrink:0; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:rgba(87,217,163,0.14); border:1px solid rgba(87,217,163,0.45); color:#57D9A3;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </span>
+            </sc-if>
+            <sc-if value="{{ selectedOwned }}" hint-placeholder-val="{{ false }}">
+            <span title="In collection" style="flex-shrink:0; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:rgba(87,217,163,0.10); border:1px solid rgba(87,217,163,0.3); color:#57D9A3;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </span>
+            </sc-if>
             <span onClick="{{ openAlertSelected }}" title="Price alert" style="cursor:pointer; flex-shrink:0; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:{{ selAlert.btnBg }}; border:1px solid {{ selAlert.btnBorder }};">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{ selAlert.bell }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
             </span>
@@ -1548,6 +1558,7 @@
           </div>
           <sc-if value="{{ selectedOwned }}" hint-placeholder-val="{{ false }}">
           <div style="margin-top:10px; display:flex; align-items:center; justify-content:center; gap:7px; font-size:12px; color:#57D9A3;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>In your collection</div>
+          <div onClick="{{ openRemoveSelected }}" style="margin-top:12px; text-align:center; font-size:12.5px; font-weight:600; color:#8B90A8; cursor:pointer;">Remove from collection</div>
           </sc-if>
         </div>
         </sc-if>
@@ -2783,8 +2794,29 @@
                 <span style="color:#F5C542; display:flex;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 7v6c0 5 3.5 7.5 8 9 4.5-1.5 8-4 8-9V7l-8-5z"/><path d="m9 12 2 2 4-4"/></svg></span>
                 <span style="font-size:14.5px; font-weight:600; color:#E8E9F0;">Submit for grading</span>
               </div>
+              <div onClick="{{ quickRemove }}" style="display:flex; align-items:center; gap:13px; padding:15px; background:#12141D; border:1px solid #1D2130; border-radius:13px; cursor:pointer;">
+                <span style="color:#F26D7E; display:flex;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></span>
+                <span style="font-size:14.5px; font-weight:600; color:#E8E9F0;">Remove from collection</span>
+              </div>
             </div>
             <div onClick="{{ closeQuick }}" style="margin-top:14px; text-align:center; font-size:13px; color:#8B90A8; cursor:pointer;">Cancel</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <!-- remove-from-collection reason sheet -->
+      <sc-if value="{{ removeOpen }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeRemove }}" style="position:absolute; inset:0; z-index:60; background:rgba(5,6,10,0.82); backdrop-filter:blur(6px); display:flex; align-items:flex-end;">
+          <div onClick="{{ stopEv }}" style="width:100%; background:#0e1017; border-top:1px solid #1D2130; border-radius:22px 22px 0 0; padding:20px 20px 26px; box-shadow:0 -20px 50px -12px rgba(0,0,0,0.7); animation: rrRise 0.28s ease-out;">
+            <div style="width:38px; height:4px; border-radius:999px; background:#2a2f42; margin:0 auto 18px;"></div>
+            <div style="font-size:17px; font-weight:700; color:#E8E9F0;">Remove from collection</div>
+            <div style="font-size:12.5px; color:#8B90A8; line-height:1.55; margin-top:6px;">Takes <b style="color:#c4c6d4; font-weight:600;">{{ removeName }}</b> out of your portfolio without logging a sale. What happened to it?</div>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px;">
+              <sc-for list="{{ removeReasons }}" as="r" hint-placeholder-count="6">
+                <div onClick="{{ r.pick }}" style="display:flex; align-items:center; justify-content:space-between; padding:14px 15px; background:#12141D; border:1px solid #1D2130; border-radius:12px; cursor:pointer;"><span style="font-size:14px; font-weight:600; color:#E8E9F0;">{{ r.label }}</span><span style="color:#5a5f74;">&rarr;</span></div>
+              </sc-for>
+            </div>
+            <div onClick="{{ closeRemove }}" style="margin-top:14px; text-align:center; font-size:13px; color:#8B90A8; cursor:pointer;">Cancel</div>
           </div>
         </div>
       </sc-if>
@@ -3194,6 +3226,7 @@ class Component extends DCLogic {
     this.state = {
       screen: props.startScreen || 'home',
       prev: 'home',
+      navStack: [],
       spent: 0,
       pulled: [],
       sessionAnchor: 0,
@@ -3212,6 +3245,7 @@ class Component extends DCLogic {
       selSet: 0,
       selVar: 0,
       sold: [],
+      removed: [],
       offsets: {},
       trackedIds: [],
       alerts: [],
@@ -3249,6 +3283,7 @@ class Component extends DCLogic {
       accArm: false,
       sellCard: null,
       quickCard: null,
+      removeCard: null,
       sellPrice: 0,
       soldPrices: {},
       selLang: this.deviceLang,
@@ -3423,7 +3458,7 @@ class Component extends DCLogic {
     // ---- persistence: rehydrate the user-data slice so scans, sells,
     // spend, targets and grading orders survive a reload (autosaved in
     // componentDidUpdate). Everything else is derived or transient UI. ----
-    this.PKEYS = ['spent','pulled','sessionAnchor','qi','sold','soldPrices','offsets','trackedIds','alerts','alertsSeen','centeringPinned','gradingOrders','gradingIds','subSchedule','cur','homeMarket','account','onboarded'];
+    this.PKEYS = ['spent','pulled','sessionAnchor','qi','sold','removed','soldPrices','offsets','trackedIds','alerts','alertsSeen','centeringPinned','gradingOrders','gradingIds','subSchedule','cur','homeMarket','account','onboarded'];
     try {
       const rawSaved = localStorage.getItem(this.SKEY);
       if (rawSaved) {
@@ -3567,11 +3602,38 @@ class Component extends DCLogic {
   fmtIn(amount, cur){ const s=this.curSym[cur]||'$'; const r = cur==='JPY' ? Math.round(amount/1000)*1000 : Math.round(amount); return s + r.toLocaleString(); }
   pct(n){ return (n>=0?'+':'') + n.toFixed(1) + '%'; }
 
+  // Root destinations (tab bar + FAB): arriving at one clears the back stack,
+  // so you never accumulate history behind a primary tab.
+  ROOTS = ['home','scan','targets','portfolio','guide','settings'];
+  // Launch points with no header back button — a sub-flow opened from one of
+  // these should back out to Home, never strand the user on the launcher itself.
+  BACKLESS = ['scan'];
+  _scrollTop(){ requestAnimationFrame(() => { const el = document.querySelector('[data-screen-scroll]'); if (el) el.scrollTop = 0; }); }
   go(s){
-    this.setState({ prev: this.state.screen, screen: s });
-    requestAnimationFrame(() => { const el = document.querySelector('[data-screen-scroll]'); if (el) el.scrollTop = 0; });
+    const st = this.state;
+    if (s === st.screen) return;
+    let stack = (st.navStack || []).slice();
+    if (this.ROOTS.includes(s)) {
+      stack = [];
+    } else {
+      // anchor to Home when leaving a backless launcher (e.g. Scan) so backing
+      // out of the flow returns home instead of the camera view.
+      const anchor = this.BACKLESS.includes(st.screen) ? 'home' : st.screen;
+      if (stack[stack.length - 1] !== anchor) stack.push(anchor);
+      // break cycles (e.g. detail⇄search): if we've seen the target already,
+      // rewind to it instead of stacking another copy.
+      const idx = stack.indexOf(s);
+      if (idx !== -1) stack = stack.slice(0, idx);
+    }
+    this.setState({ navStack: stack, prev: st.screen, screen: s });
+    this._scrollTop();
   }
-  back = () => { const p = this.state.prev; this.go(p && p !== this.state.screen ? p : 'home'); };
+  back = () => {
+    const stack = (this.state.navStack || []).slice();
+    const dest = stack.pop() || 'home';
+    this.setState({ navStack: stack, prev: dest, screen: dest });
+    this._scrollTop();
+  };
 
   dismissCoach = () => { try { localStorage.setItem('rr_coach_seen', '1'); } catch (_) {} this.setState({ coachSeen: true }); };
   replayCoach = () => { try { localStorage.removeItem('rr_coach_seen'); } catch (_) {} this.setState({ coachSeen: false }); this.go('scan'); };
@@ -3609,6 +3671,7 @@ class Component extends DCLogic {
       current: null,
       fly: est,
       screen: 'scan',
+      navStack: [],
     }));
     setTimeout(() => this.setState({ fly: null }), 1150);
   };
@@ -3813,6 +3876,20 @@ class Component extends DCLogic {
   quickView = () => { const c = this.state.quickCard; this.closeQuick(); if (c) this.openCard(c); };
   quickSell = () => { const c = this.state.quickCard; this.closeQuick(); if (c) this.openSellById(c.id); };
   quickGrade = () => { const c = this.state.quickCard; this.closeQuick(); if (c) { this.setState({ gsCardId: c.id, gsGrader:'PSA', gsService:1, gsDone:false }); this.go('grade'); } };
+  // remove a holding from the portfolio WITHOUT logging a sale (traded / ripped /
+  // lost / damaged / gave away). Filtered out of holdings via state.removed.
+  quickRemove = () => { const c = this.state.quickCard; this.closeQuick(); if (c) this.setState({ removeCard: c }); };
+  openRemoveSelected = () => {
+    const st = this.state; const sel = st.selected; if (!sel) return;
+    const h = this.heldSource().find(x => (x.cardId===sel.cardId || x.name===sel.name) && !st.removed.includes(x.id) && !st.sold.includes(x.id));
+    if (h) this.setState({ removeCard: h });
+  };
+  closeRemove = () => this.setState({ removeCard: null });
+  confirmRemove = (reason) => {
+    const c = this.state.removeCard; if (!c) return;
+    this.setState(st => ({ removed: [...st.removed, c.id], removeCard: null }),
+      () => { if (this.state.screen === 'detail') this.back(); });
+  };
 
   // ---- targets / tracking ----
   mkTarget = (cardId, star) => {
@@ -3903,7 +3980,7 @@ class Component extends DCLogic {
     if (!card) return;
     const id = card.cardId || card.id; if (!id) return;
     const done = this.cenChecked(id);
-    this.setState({ centerCardId: id, centerStep: done ? 'result' : 'front', centerScanning: false, prev: this.state.screen, screen: 'centering' });
+    this.setState(st => ({ centerCardId: id, centerStep: done ? 'result' : 'front', centerScanning: false, prev: st.screen, screen: 'centering', navStack: [...(st.navStack || []), st.screen] }));
   };
   scanCenterSide = () => {
     if (this.state.centerScanning) return;
@@ -4018,12 +4095,12 @@ class Component extends DCLogic {
   // reset the live meter (a new rip starts a fresh window from here).
   endRip = () => this.setState(st => {
     const sess = st.pulled.slice(st.sessionAnchor || 0);
-    if (!(st.spent > 0 || sess.length)) return { screen: 'home' };
+    if (!(st.spent > 0 || sess.length)) return { screen: 'home', navStack: [] };
     const total = sess.reduce((a,c)=>a+(c.value||0),0);
     const best = sess.slice().sort((a,b)=>(b.value||0)-(a.value||0))[0];
     const setName = sess.length ? sess[sess.length-1].set : 'Mixed';
     this.pastSessions = [{ id:'ps'+Date.now().toString(36), set:setName, box:'Rip', date:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}), spent:Math.round(st.spent), pulled:Math.round(total), cards:sess.length, best: best?best.name:'\u2014', bestVal: best?Math.round(best.value):0 }, ...this.pastSessions];
-    return { spent:0, sessionAnchor: st.pulled.length, qi:0, batch:[], bqi:0, screen:'history' };
+    return { spent:0, sessionAnchor: st.pulled.length, qi:0, batch:[], bqi:0, screen:'history', navStack:['home'] };
   });
   logProductSpend = () => {
     const p = this.state.product; if (!p) return;
@@ -4177,6 +4254,7 @@ class Component extends DCLogic {
       sellCard: null,
       screen: 'portfolio',
       prev: 'home',
+      navStack: [],
       toast: { name: sc.name, value: price, pnl },
     }));
     this._toastT = setTimeout(() => this.setState({ toast: null }), 4200);
@@ -4284,9 +4362,6 @@ class Component extends DCLogic {
         fetch(base + '/products').then(r => r.json()),
       ]);
       if (Array.isArray(cards) && cards.length) {
-        // MERGE the live catalog under the built-in one — replacing it wiped
-        // the imported collection cards (their ids anchor holdings) and left
-        // search empty for anything outside the fetched sets.
         const cardKey = c => (c.name + '|' + c.num).toLowerCase();
         const haveId = new Set(this.db.cards.map(c => c.id));
         const byKey = new Map(cards.map(c => [cardKey(c), c]));
@@ -4448,7 +4523,7 @@ class Component extends DCLogic {
     const screen = st.screen;
     const holoOp = ((this.props.holoIntensity != null ? this.props.holoIntensity : 60) / 100 * 0.9 + 0.1).toFixed(2);
     const orderGrading = (st.gradingOrders || []).map(o => this.disp(o.cardId, { id:o.id, grader:o.grader, service:o.service, days:o.days, submittedAt:o.submittedAt, value:o.value }));
-    const srcHeldAll = this.heldSource().filter(h => !st.gradingIds.includes(h.id));
+    const srcHeldAll = this.heldSource().filter(h => !st.gradingIds.includes(h.id) && !st.removed.includes(h.id));
     // demo: `empty` is the explicit dataState flag. fresh build: `empty` is
     // real — true only until the user actually adds/sells/submits something.
     const realActivity = srcHeldAll.length > 0 || st.sold.length > 0 || st.gradingIds.length > 0 || orderGrading.length > 0;
@@ -5284,6 +5359,10 @@ class Component extends DCLogic {
       heldCount: held.length, gradingCount: grading.length, soldCount: soldList.length,
       swipeStart: this.swipeStart, swipeMove: this.swipeMove, swipeEnd: this.swipeEnd,
       quickCard: st.quickCard, quickOpen: !!st.quickCard,
+      quickRemove: this.quickRemove,
+      removeOpen: !!st.removeCard, removeName: st.removeCard ? st.removeCard.name : '',
+      openRemoveSelected: this.openRemoveSelected, closeRemove: this.closeRemove,
+      removeReasons: ['Traded','Ripped it open','Lost / misplaced','Damaged','Gave away','Other'].map(r => ({ label:r, pick: () => this.confirmRemove(r) })),
       quickName: st.quickCard ? st.quickCard.name : '', quickSetStr: st.quickCard ? st.quickCard.set : '',
       quickPriceStr: st.quickCard ? this.money(st.quickCard.value) : '',
       quickTc: st.quickCard ? this.tm(st.quickCard.tier).c : '#8B90A8',

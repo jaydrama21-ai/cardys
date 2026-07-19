@@ -145,7 +145,7 @@ app.listen(port, async () => {
       warmPriceCache(await loadPriceCompsFromPg());
       warmHistoryCache(await loadPriceHistoryFromPg());
     }
-    const setLimit = Number(process.env.CATALOG_SET_LIMIT || 16);
+    const setLimit = Number(process.env.CATALOG_SET_LIMIT || 40);
     const RETRY_MS = 10 * 60 * 1000; // failed fetch → try again in 10 min
     const REFRESH_MS = 24 * 60 * 60 * 1000; // success → refresh daily
     const refreshCatalog = async () => {

@@ -25,6 +25,14 @@ export async function recognize(imageBase64: string): Promise<RecognizeResult> {
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9/ ]+/g, " ").replace(/\s+/g, " ").trim();
 
+/** Collector numbers print with leading zeros ("087/086") but the catalog
+ *  stores them bare ("87/86") — compare with zeros stripped. */
+const normNum = (s: string) =>
+  norm(s)
+    .split("/")
+    .map((p) => p.replace(/^0+(?=\d)/, ""))
+    .join("/");
+
 /** Token-overlap similarity in [0,1] — cheap and OCR-noise tolerant. Scored
  *  against the smaller token set so OCR extras ("HP210", "Basic") don't dilute
  *  a clean name hit. */
@@ -46,12 +54,12 @@ export interface RecognitionHints {
 /** Score every catalog card against the hints; return ranked candidates. */
 export function matchCatalog(hints: RecognitionHints): RecognizeResult {
   const cards = db.cards();
-  const num = hints.number ? norm(hints.number) : null;
+  const num = hints.number ? normNum(hints.number) : null;
   const scored = cards
     .map((c: Card) => {
       let score = 0;
       if (num) {
-        const cardNum = norm(c.num);
+        const cardNum = normNum(c.num);
         if (cardNum === num) score += 0.6; // full "161/131" match
         else if (cardNum.split("/")[0] === num.split("/")[0]) score += 0.35; // printed number only
       }

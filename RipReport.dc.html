@@ -363,6 +363,9 @@
         <!-- ============ SCAN ============ -->
         <sc-if value="{{ isScan }}" hint-placeholder-val="{{ false }}">
         <div data-screen-label="Scan" style="position:relative; height: 100%; background:#07080c;">
+        <sc-if value="{{ scanMiss }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute; left:16px; right:16px; bottom:112px; z-index:50; background:rgba(14,16,23,0.92); border:1px solid #1D2130; border-radius:12px; padding:12px 14px; font-size:12.5px; color:#E8E9F0; text-align:center;">Couldn&rsquo;t read the card &mdash; try again closer, or add it via Search.</div>
+        </sc-if>
           <div style="padding: 8px 18px 0; display:flex; align-items:center; justify-content:space-between;">
             <span onClick="{{ openRipStart }}" style="display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; letter-spacing:0.14em; color:#57D9A3; cursor:pointer;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>NEW RIP</span>
             <span style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#8B90A8;">{{ sessionCount }} cards · {{ ripSpentStr }}</span>
@@ -3297,6 +3300,7 @@ class Component extends DCLogic {
       selLang: this.deviceLang,
       selGrader: 'Raw',
       selGrade: 10,
+      scanMiss: false,
       paidOpen: false,
       paidAmt: 0,
       paidKind: 'card',
@@ -3658,6 +3662,33 @@ class Component extends DCLogic {
 
   scanNext = () => {
     if (this.state.scanState !== 'idle') return;
+    // LIVE scan: with a backend and a real camera frame, recognition is real —
+    // capture the viewfinder and ask /recognize. Otherwise keep the demo queue.
+    const base = this._apiBase;
+    const video = this._camVideo;
+    if (base && this._camStream && video && video.videoWidth > 0) {
+      this.setState({ scanState: 'scanning', current: null });
+      try {
+        const canvas = document.createElement('canvas');
+        const w = Math.min(1280, video.videoWidth);
+        canvas.width = w;
+        canvas.height = Math.round(video.videoHeight * (w / video.videoWidth));
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        const frame = canvas.toDataURL('image/jpeg', 0.85);
+        fetch(base + '/recognize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: frame }) })
+          .then(r => r.json())
+          .then(res => {
+            const dbc = res && res.id ? this.cardById(res.id) : null;
+            if (dbc) {
+              const card = { cardId: dbc.id, name: dbc.name, set: dbc.set, variant: dbc.variant, tier: dbc.tier, value: dbc.raw, chase: !!dbc.chase, img: dbc.img };
+              this.setState({ scanState: 'found', current: card, chaseCount: 0 });
+              if (card.chase) this.startCount(card.value);
+            } else this.scanMissed();
+          })
+          .catch(() => this.scanMissed());
+      } catch (_) { this.scanMissed(); }
+      return;
+    }
     const card = this.queue[this.state.qi];
     if (!card) return;
     this.setState({ scanState: 'scanning', current: null });
@@ -3665,6 +3696,11 @@ class Component extends DCLogic {
       this.setState({ scanState: 'found', current: card, chaseCount: 0 });
       if (card.chase) this.startCount(card.value);
     }, 900);
+  };
+  scanMissed = () => {
+    this.setState({ scanState: 'idle', current: null, scanMiss: true });
+    clearTimeout(this._missT);
+    this._missT = setTimeout(() => this.setState({ scanMiss: false }), 2400);
   };
 
   goConfirm = () => { this.setState({ selCond:'NM', selSet:0, selVar:0, selLang:this.deviceLang, selGrader:'Raw', selGrade:10 }); this.go('confirm'); };
@@ -5410,6 +5446,7 @@ class Component extends DCLogic {
       quickRemove: this.quickRemove,
       removeOpen: !!st.removeCard, removeName: st.removeCard ? st.removeCard.name : '',
       openRemoveSelected: this.openRemoveSelected, closeRemove: this.closeRemove,
+      scanMiss: st.scanMiss,
       paidOpen: st.paidOpen, closePaid: this.closePaid, confirmPaid: this.confirmPaid, setPaidAmt: this.setPaidAmt,
       openPaidCard: this.openPaidCard, openPaidSealed: this.openPaidSealed,
       paidAmt: st.paidAmt, paidStr: this.money(Math.round(st.paidAmt || 0)),

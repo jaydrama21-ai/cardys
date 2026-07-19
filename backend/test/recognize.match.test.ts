@@ -27,6 +27,10 @@ const junk = matchCatalog({ name: "zzzz qqqq" });
 assert.equal(junk.id, null);
 assert.deepEqual(junk.candidates, []);
 
+// Printed numbers carry leading zeros; catalog stores them bare
+const zeros = matchCatalog({ number: "0161/0131" });
+assert.equal(zeros.id, umbreon.id, "leading zeros stripped for number match");
+
 // OCR text parsing: name line + collector number extraction
 const hints = hintsFromOcrText("Basic\nUmbreon ex\nHP 210\nDarkness\n161/131\nIllus. Keiichiro Ito");
 assert.equal(hints.number, "161/131");

@@ -63,4 +63,39 @@ assert.equal(commonCard.img, "https://images.pokemontcg.io/sv8pt5/1.png", "falls
 assert.equal(commonCard.raw, 1, "no price data seeds $1");
 assert.equal(commonCard.tier, "D");
 
+// --- API down → GitHub mirror fallback ---------------------------------------
+const MIRROR_SETS = [
+  { id: "sv8pt5", ptcgoCode: "PRE", name: "Prismatic Evolutions", releaseDate: "2025/01/17", printedTotal: 131 },
+  { id: "base1", name: "Base", releaseDate: "1999/01/09", printedTotal: 102 },
+];
+const MIRROR_CARDS = [
+  {
+    id: "sv8pt5-161",
+    name: "Umbreon ex",
+    number: "161",
+    rarity: "Special Illustration Rare",
+    images: { small: "https://images.pokemontcg.io/sv8pt5/161.png", large: "https://images.pokemontcg.io/sv8pt5/161_hires.png" },
+    tcgplayer: { prices: { holofoil: { market: 1348.55 } } },
+  },
+];
+globalThis.fetch = (async (url: any) => {
+  const u = String(url);
+  if (u.includes("api.pokemontcg.io")) return new Response("Bad Gateway", { status: 502 });
+  if (u.includes("/sets/en.json")) return new Response(JSON.stringify(MIRROR_SETS), { status: 200 });
+  if (u.includes("/cards/en/sv8pt5.json")) return new Response(JSON.stringify(MIRROR_CARDS), { status: 200 });
+  return new Response("[]", { status: 200 });
+}) as typeof fetch;
+
+const viaMirror = await loadLiveCatalog(1);
+globalThis.fetch = realFetch;
+
+assert.equal(viaMirror.sets.length, 1, "mirror picks the latest set by releaseDate");
+assert.equal(viaMirror.sets[0].code, "PRE");
+const mUmbreon = viaMirror.cards[0];
+assert.equal(mUmbreon.img, "https://images.pokemontcg.io/sv8pt5/161_hires.png", "mirror cards carry images");
+assert.equal(mUmbreon.num, "161/131", "set printedTotal injected into card number");
+assert.equal(mUmbreon.set, "Prismatic Evolutions");
+assert.equal(mUmbreon.raw, 1349);
+
 console.log("catalog.map.test: OK — live mapping produces cards with images in the app schema");
+console.log("catalog.map.test: OK — API failure falls back to the GitHub data mirror");

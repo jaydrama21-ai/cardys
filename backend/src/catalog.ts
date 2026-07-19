@@ -63,18 +63,61 @@ export async function fetchCardsForSet(setId: string): Promise<Card[]> {
   return (j.data || []).map(mapCard);
 }
 
-/** Pull the most recent `setLimit` sets and all their cards (with images). */
+/** Pull the most recent `setLimit` sets and all their cards (with images).
+ *  Tries the live API first; if it's down or rate-limiting (it often is), falls
+ *  back to the official data mirror on GitHub — same cards, same image URLs,
+ *  no key, no rate limits. */
 export async function loadLiveCatalog(setLimit = 8): Promise<{ cards: Card[]; sets: CardSet[] }> {
-  const setsRaw = await fetchSets(setLimit);
+  try {
+    const setsRaw = await fetchSets(setLimit);
+    if (!setsRaw.length) throw new Error("API returned no sets");
+    const cards: Card[] = [];
+    for (const s of setsRaw) {
+      try {
+        cards.push(...(await fetchCardsForSet(s._id)));
+      } catch (e) {
+        console.error(`catalog: skipping set ${s.name} (${s._id}):`, (e as Error).message);
+      }
+    }
+    if (!cards.length) throw new Error("API returned no cards");
+    const sets: CardSet[] = setsRaw.map(({ _id, ...rest }) => rest);
+    return { cards, sets };
+  } catch (e) {
+    console.error(`catalog: live API failed (${(e as Error).message}) — trying GitHub data mirror…`);
+    return loadCatalogFromMirror(setLimit);
+  }
+}
+
+// --- Fallback: PokemonTCG/pokemon-tcg-data on GitHub --------------------------
+// The API's own dataset, published as raw JSON. Card entries lack the embedded
+// `set` object the API adds, so we inject name/printedTotal from the set record
+// before mapping.
+const MIRROR = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master";
+
+export async function loadCatalogFromMirror(setLimit = 8): Promise<{ cards: Card[]; sets: CardSet[] }> {
+  const r = await fetch(`${MIRROR}/sets/en.json`, { signal: AbortSignal.timeout(30_000) });
+  if (!r.ok) throw new Error(`mirror /sets responded ${r.status}`);
+  const allSets: any[] = await r.json();
+  const latest = allSets
+    .filter((s) => s.releaseDate)
+    .sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate)))
+    .slice(0, setLimit);
   const cards: Card[] = [];
-  for (const s of setsRaw) {
+  for (const s of latest) {
     try {
-      cards.push(...(await fetchCardsForSet(s._id)));
+      const cr = await fetch(`${MIRROR}/cards/en/${s.id}.json`, { signal: AbortSignal.timeout(60_000) });
+      if (!cr.ok) throw new Error(`responded ${cr.status}`);
+      const raw: any[] = await cr.json();
+      cards.push(...raw.map((c) => mapCard({ ...c, set: { name: s.name, printedTotal: s.printedTotal } })));
     } catch (e) {
-      console.error(`catalog: skipping set ${s.name} (${s._id}):`, (e as Error).message);
+      console.error(`catalog: mirror skipping set ${s.name} (${s.id}):`, (e as Error).message);
     }
   }
-  const sets: CardSet[] = setsRaw.map(({ _id, ...rest }) => rest);
+  const sets: CardSet[] = latest.map((s) => ({
+    code: s.ptcgoCode || s.id,
+    name: s.name,
+    released: s.releaseDate,
+  }));
   return { cards, sets };
 }
 

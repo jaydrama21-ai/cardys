@@ -4399,6 +4399,12 @@ class Component extends DCLogic {
       ? `center/cover no-repeat url("${img}"), ` + (img2 ? `center/cover no-repeat url("${img2}"), ` : '') + `#12141D`
       : 'repeating-linear-gradient(115deg,#171a24,#171a24 5px,#1c2030 5px,#1c2030 10px)';
   }
+  // Low-res art for dense list rows — full-size images across hundreds of
+  // rows exhaust mobile memory.
+  cardArtSm(card){
+    const shrink = u => u && u.replace('_hires.png', '.png').replace('/large', '/small').replace('_in_1000x1000', '_in_200x200');
+    return this.cardArt(card ? { ...card, img: shrink(card.img), img2: shrink(card.img2) } : card);
+  }
   componentWillUnmount(){ this.stopCamera(); }
 
   // ---- live device camera (fresh/test build only) ---------------------------
@@ -5045,16 +5051,22 @@ class Component extends DCLogic {
     const searchLangList = ['All','EN','JP','KR','ZH'];
     const searchGradeList = ['All','Raw','PSA 10','PSA 9'];
     const searchLang = st.searchLang === 'All' ? 'EN' : st.searchLang;
-    const searchResults = this.db.cards
+    const searchMatches = this.db.cards
       .filter(c => !q || (c.name+' '+c.set+' '+c.variant).toLowerCase().includes(q))
-      .filter(c => st.searchLang === 'All' || (c.langs || ['EN']).includes(st.searchLang))
+      .filter(c => st.searchLang === 'All' || (c.langs || ['EN']).includes(st.searchLang));
+    if (q) searchMatches.sort((a, b) =>
+      (b.name.toLowerCase().startsWith(q) ? 1 : 0) - (a.name.toLowerCase().startsWith(q) ? 1 : 0));
+    const searchTotal = searchMatches.length;
+    // Render a bounded page of results — mapping the full 20k-card catalog
+    // into DOM rows (each pulling a full-size image) OOM-crashes mobile tabs.
+    const searchResults = searchMatches.slice(0, 60)
       .map(c => {
         let val, gradeTag;
         if (st.searchGrade === 'PSA 10') { val = this.priceGraded(c, 'PSA', 10, searchLang); gradeTag = 'PSA 10'; }
         else if (st.searchGrade === 'PSA 9') { val = this.priceGraded(c, 'PSA', 9, searchLang); gradeTag = 'PSA 9'; }
         else { val = this.priceRaw(c, searchLang); gradeTag = 'Raw'; }
         return {
-          ...c, tc:this.tm(c.tier).c, tbg:this.tm(c.tier).b, valStr:this.money(val), art:this.cardArt(c),
+          ...c, tc:this.tm(c.tier).c, tbg:this.tm(c.tier).b, valStr:this.money(val), art:this.cardArtSm(c),
           tagStr: gradeTag + (st.searchLang === 'All' ? '' : ' · ' + st.searchLang),
           open: () => this.openCard({ cardId:c.id, name:c.name, set:c.set, tier:c.tier, value:c.raw, img:c.img }) };
       });
@@ -5561,8 +5573,8 @@ class Component extends DCLogic {
       // ---- full search ----
       searchQuery: st.searchQuery, setSearchQuery: this.setSearchQuery, clearSearch: this.clearSearch,
       hasSearchQuery: st.searchQuery.length>0,
-      searchResults, searchCount: searchResults.length,
-      searchNoResults: q.length>0 && searchResults.length===0,
+      searchResults, searchCount: searchTotal,
+      searchNoResults: q.length>0 && searchTotal===0,
       searchLangChips, searchGradeChips,
       searchTabSingles, searchTabSealed, sealedTab, singlesTab: !sealedTab,
       searchProducts, searchProductCount: searchProducts.length,

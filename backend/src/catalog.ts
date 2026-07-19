@@ -75,7 +75,10 @@ export async function fetchCardsForSet(setId: string): Promise<Card[]> {
  *  Tries the live API first; if it's down or rate-limiting (it often is), falls
  *  back to the official data mirror on GitHub — same cards, same image URLs,
  *  no key, no rate limits. */
-export async function loadLiveCatalog(setLimit = 8): Promise<{ cards: Card[]; sets: CardSet[] }> {
+export async function loadLiveCatalog(setLimit = 0): Promise<{ cards: Card[]; sets: CardSet[] }> {
+  // setLimit <= 0 means the FULL catalog — the mirror serves that best (one
+  // request per set, no rate limits), so skip the flaky API entirely.
+  if (setLimit <= 0) return loadCatalogFromMirror(0);
   try {
     const setsRaw = await fetchSets(setLimit);
     if (!setsRaw.length) throw new Error("API returned no sets");
@@ -102,26 +105,36 @@ export async function loadLiveCatalog(setLimit = 8): Promise<{ cards: Card[]; se
 // before mapping.
 const MIRROR = "https://raw.githubusercontent.com/PokemonTCG/pokemon-tcg-data/master";
 
-export async function loadCatalogFromMirror(setLimit = 8): Promise<{ cards: Card[]; sets: CardSet[] }> {
+export async function loadCatalogFromMirror(setLimit = 0): Promise<{ cards: Card[]; sets: CardSet[] }> {
   const r = await fetch(`${MIRROR}/sets/en.json`, { signal: AbortSignal.timeout(30_000) });
   if (!r.ok) throw new Error(`mirror /sets responded ${r.status}`);
   const allSets: any[] = await r.json();
-  const latest = allSets
+  const sorted = allSets
     .filter((s) => s.releaseDate)
-    .sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate)))
-    .slice(0, setLimit);
-  const cards: Card[] = [];
-  for (const s of latest) {
+    .sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate)));
+  const picked = setLimit > 0 ? sorted.slice(0, setLimit) : sorted;
+
+  const fetchSet = async (s: any): Promise<Card[]> => {
     try {
       const cr = await fetch(`${MIRROR}/cards/en/${s.id}.json`, { signal: AbortSignal.timeout(60_000) });
       if (!cr.ok) throw new Error(`responded ${cr.status}`);
       const raw: any[] = await cr.json();
-      cards.push(...raw.map((c) => mapCard({ ...c, set: { id: s.id, name: s.name, printedTotal: s.printedTotal } })));
+      return raw.map((c) => mapCard({ ...c, set: { id: s.id, name: s.name, printedTotal: s.printedTotal } }));
     } catch (e) {
       console.error(`catalog: mirror skipping set ${s.name} (${s.id}):`, (e as Error).message);
+      return [];
     }
+  };
+
+  // Pull sets 8 at a time — the full catalog (~170 sets) loads in well under a
+  // minute without hammering the mirror.
+  const cards: Card[] = [];
+  for (let i = 0; i < picked.length; i += 8) {
+    const batch = await Promise.all(picked.slice(i, i + 8).map(fetchSet));
+    for (const b of batch) cards.push(...b);
   }
-  const sets: CardSet[] = latest.map((s) => ({
+
+  const sets: CardSet[] = picked.map((s) => ({
     code: s.ptcgoCode || s.id,
     name: s.name,
     released: s.releaseDate,

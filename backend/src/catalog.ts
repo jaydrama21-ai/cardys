@@ -91,7 +91,14 @@ export async function loadLiveCatalog(setLimit = 0): Promise<{ cards: Card[]; se
       }
     }
     if (!cards.length) throw new Error("API returned no cards");
-    const sets: CardSet[] = setsRaw.map(({ _id, ...rest }) => rest);
+    const used = new Set<string>();
+    const sets: CardSet[] = setsRaw.map(({ _id, ...rest }) => {
+      // ptcgoCodes collide (Crown Zenith and its Galarian Gallery are both
+      // "CRZ") — fall back to the unique set id so every set persists.
+      const code = used.has(rest.code) ? _id : rest.code;
+      used.add(code);
+      return { ...rest, code };
+    });
     return { cards, sets };
   } catch (e) {
     console.error(`catalog: live API failed (${(e as Error).message}) — trying GitHub data mirror…`);
@@ -134,11 +141,15 @@ export async function loadCatalogFromMirror(setLimit = 0): Promise<{ cards: Card
     for (const b of batch) cards.push(...b);
   }
 
-  const sets: CardSet[] = picked.map((s) => ({
-    code: s.ptcgoCode || s.id,
-    name: s.name,
-    released: s.releaseDate,
-  }));
+  const used = new Set<string>();
+  const sets: CardSet[] = picked.map((s) => {
+    // ptcgoCodes collide (e.g. Crown Zenith + its Galarian Gallery are both
+    // "CRZ") — fall back to the unique set id so every set persists.
+    const preferred = s.ptcgoCode || s.id;
+    const code = used.has(preferred) ? s.id : preferred;
+    used.add(code);
+    return { code, name: s.name, released: s.releaseDate };
+  });
   return { cards, sets };
 }
 

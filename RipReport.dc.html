@@ -4284,9 +4284,18 @@ class Component extends DCLogic {
         fetch(base + '/products').then(r => r.json()),
       ]);
       if (Array.isArray(cards) && cards.length) {
-        this.db.cards = cards;
-        if (Array.isArray(sets) && sets.length) this.db.sets = sets;
-        if (Array.isArray(products) && products.length) this.db.products = products;
+        // MERGE the live catalog under the built-in one — replacing it wiped
+        // the imported collection cards (their ids anchor holdings) and left
+        // search empty for anything outside the fetched sets.
+        const haveId = new Set(this.db.cards.map(c => c.id));
+        const haveCard = new Set(this.db.cards.map(c => (c.name + '|' + c.num).toLowerCase()));
+        const fresh = cards.filter(c => !haveId.has(c.id) && !haveCard.has((c.name + '|' + c.num).toLowerCase()));
+        this.db.cards = this.db.cards.concat(fresh);
+        if (Array.isArray(sets) && sets.length) {
+          const haveSet = new Set((this.db.sets || []).map(s => s.name));
+          this.db.sets = (this.db.sets || []).concat(sets.filter(s => !haveSet.has(s.name)));
+        }
+        if (Array.isArray(products) && products.length && !(this.db.products || []).length) this.db.products = products;
         this._byId = {}; this.db.cards.forEach(c => { this._byId[c.id] = c; });
         this.catalog = this.db.cards;
         this._apiBase = base;

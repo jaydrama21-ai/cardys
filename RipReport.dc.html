@@ -159,7 +159,7 @@
                 <input value="{{ obPassword }}" onInput="{{ setObPassword }}" type="password" placeholder="Your password" style="width:100%; box-sizing:border-box; background:#12141D; border:1px solid #1D2130; border-radius:12px; padding:14px; color:#E8E9F0; font-family:'Geist',sans-serif; font-size:14px; outline:none;" />
               </div>
               <sc-if value="{{ obLoginErr }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex; align-items:center; gap:7px; font-size:12px; color:#F26D7E;"><span style="width:5px; height:5px; border-radius:999px; background:#F26D7E;"></span>Enter a valid email and password.</div>
+              <div style="display:flex; align-items:center; gap:7px; font-size:12px; color:#F26D7E;"><span style="width:5px; height:5px; border-radius:999px; background:#F26D7E;"></span>{{ obAuthErrMsg }}</div>
               </sc-if>
               <sc-if value="{{ obForgotSent }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex; align-items:center; gap:7px; font-size:12px; color:#57D9A3;"><span style="width:5px; height:5px; border-radius:999px; background:#57D9A3;"></span>Reset link sent — check your inbox.</div>
@@ -364,7 +364,10 @@
         <sc-if value="{{ isScan }}" hint-placeholder-val="{{ false }}">
         <div data-screen-label="Scan" style="position:relative; height: 100%; background:#07080c;">
         <sc-if value="{{ scanMiss }}" hint-placeholder-val="{{ false }}">
-          <div style="position:absolute; left:16px; right:16px; bottom:112px; z-index:50; background:rgba(14,16,23,0.92); border:1px solid #1D2130; border-radius:12px; padding:12px 14px; font-size:12.5px; color:#E8E9F0; text-align:center;">Couldn&rsquo;t read the card &mdash; try again closer, or add it via Search.</div>
+          <div style="position:absolute; left:16px; right:16px; bottom:112px; z-index:50; background:rgba(14,16,23,0.92); border:1px solid #1D2130; border-radius:12px; padding:12px 14px; font-size:12.5px; color:#E8E9F0; text-align:center;">{{ scanMissMsg }}</div>
+        </sc-if>
+        <sc-if value="{{ hasScansLeft }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute; top:64px; right:16px; z-index:50; background:rgba(14,16,23,0.85); border:1px solid #1D2130; border-radius:999px; padding:6px 12px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#8B90A8;">{{ scansLeftStr }}</div>
         </sc-if>
           <div style="padding: 8px 18px 0; display:flex; align-items:center; justify-content:space-between;">
             <span onClick="{{ openRipStart }}" style="display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; letter-spacing:0.14em; color:#57D9A3; cursor:pointer;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>NEW RIP</span>
@@ -3301,6 +3304,9 @@ class Component extends DCLogic {
       selGrader: 'Raw',
       selGrade: 10,
       scanMiss: false,
+      scanMissMsg: '',
+      scansLeft: null,
+      obAuthErrMsg: '',
       paidOpen: false,
       paidAmt: 0,
       paidKind: 'card',
@@ -3675,9 +3681,16 @@ class Component extends DCLogic {
         canvas.height = Math.round(video.videoHeight * (w / video.videoWidth));
         canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         const frame = canvas.toDataURL('image/jpeg', 0.85);
-        fetch(base + '/recognize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: frame }) })
+        fetch(base + '/recognize', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-device-id': this.deviceId(), ...this.authHeaders() }, body: JSON.stringify({ image: frame }) })
           .then(r => r.json())
           .then(res => {
+            if (res && typeof res.scansLeft === 'number') this.setState({ scansLeft: res.scansLeft });
+            if (res && res.error) {
+              this.scanMissed(res.error === 'trial_limit' ? 'Free trial scans used - sign in for 25 free scans a month.'
+                : res.error === 'scan_limit' ? 'Out of free scans this month - upgrade for unlimited.'
+                : res.error === 'daily_cap' ? 'Scanning is busy right now - try again later.' : null);
+              return;
+            }
             const dbc = res && res.id ? this.cardById(res.id) : null;
             if (dbc) {
               const card = { cardId: dbc.id, name: dbc.name, set: dbc.set, variant: dbc.variant, tier: dbc.tier, value: dbc.raw, chase: !!dbc.chase, img: dbc.img };
@@ -3697,10 +3710,44 @@ class Component extends DCLogic {
       if (card.chase) this.startCount(card.value);
     }, 900);
   };
-  scanMissed = () => {
-    this.setState({ scanState: 'idle', current: null, scanMiss: true });
+  scanMissed = (msg) => {
+    this.setState({ scanState: 'idle', current: null, scanMiss: true, scanMissMsg: msg || '' });
     clearTimeout(this._missT);
-    this._missT = setTimeout(() => this.setState({ scanMiss: false }), 2400);
+    this._missT = setTimeout(() => this.setState({ scanMiss: false }), 3200);
+  };
+
+  // ---- real accounts: token, device id, holdings sync -----------------------
+  authToken = () => { try { return localStorage.getItem('rr_token'); } catch (_) { return null; } };
+  authHeaders = () => { const t = this.authToken(); return t ? { Authorization: 'Bearer ' + t } : {}; };
+  deviceId = () => {
+    try {
+      let d = localStorage.getItem('rr_device');
+      if (!d) { d = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); localStorage.setItem('rr_device', d); }
+      return d;
+    } catch (_) { return 'unknown'; }
+  };
+  pushHoldings = () => {
+    const base = this._apiBase; if (!base || !this.authToken()) return;
+    const holdings = (this.state.pulled || [])
+      .map(p => ({ id: String(p.id || p.uid || ''), cardId: p.cardId || '', lang: p.lang || 'EN', grade: p.grade || null, cost: p.cost != null ? p.cost : null }))
+      .filter(h => h.cardId);
+    fetch(base + '/holdings', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...this.authHeaders() }, body: JSON.stringify(holdings) }).catch(() => {});
+  };
+  adoptHoldings = () => {
+    const base = this._apiBase; if (!base || !this.authToken()) return;
+    fetch(base + '/holdings', { headers: this.authHeaders() })
+      .then(r => (r.ok ? r.json() : null))
+      .then(rows => {
+        if (!Array.isArray(rows)) return;
+        if (!rows.length) { this.pushHoldings(); return; }
+        const pulled = rows.map(h => {
+          const c = this.cardById(h.cardId);
+          if (!c) return null;
+          return { cardId: c.id, name: c.name, set: c.set, variant: c.variant, tier: c.tier, value: c.raw, chase: !!c.chase, img: c.img, id: h.id, lang: h.lang || 'EN', grade: h.grade || null, cost: h.cost != null ? h.cost : 0 };
+        }).filter(Boolean);
+        if (pulled.length) this.setState({ pulled });
+      })
+      .catch(() => {});
   };
 
   goConfirm = () => { this.setState({ selCond:'NM', selSet:0, selVar:0, selLang:this.deviceLang, selGrader:'Raw', selGrade:10 }); this.go('confirm'); };
@@ -4219,7 +4266,7 @@ class Component extends DCLogic {
   // ---- navigation ----
   goSettings = () => this.go('settings');
   goAccount = () => this.go('account');
-  goWelcome = () => { this.setState({ obStep: 0, obAuthMode: null }); this.go('welcome'); };
+  goWelcome = () => { try { localStorage.removeItem('rr_token'); localStorage.removeItem('rr_email'); } catch (_) {} this.setState({ obStep: 0, obAuthMode: null, scansLeft: null }); this.go('welcome'); };
 
   // ---- onboarding ----
   obNext = () => this.setState(st => ({ obStep: Math.min(st.obStep + 1, 3) }));
@@ -4243,8 +4290,22 @@ class Component extends DCLogic {
   obCreateEmail = () => {
     if (!this.obCanCreate()) return;
     const name = this.state.obName.trim(), email = this.state.obEmail.trim();
-    this.setState({ account: { name, email, provider: 'email' }, obAuthMode: null });
-    this.obNext();
+    const pass = this.state.obPassword || '';
+    const base = this._apiBase;
+    const finish = () => { this.setState({ account: { name, email, provider: 'email' }, obAuthMode: null, obLoginErr: false, obAuthErrMsg: '' }); this.obNext(); };
+    if (!base) { finish(); return; }
+    fetch(base + '/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass }) })
+      .then(r => r.json())
+      .then(res => {
+        if (res && res.token) {
+          try { localStorage.setItem('rr_token', res.token); localStorage.setItem('rr_email', email); } catch (_) {}
+          finish();
+          this.pushHoldings();
+        } else {
+          this.setState({ obLoginErr: true, obAuthErrMsg: (res && res.error) || 'Could not create the account.' });
+        }
+      })
+      .catch(() => this.setState({ obLoginErr: true, obAuthErrMsg: 'Network error - try again.' }));
   };
 
   // ---- returning-user sign in (skips connect-spend → straight home) ----
@@ -4258,10 +4319,24 @@ class Component extends DCLogic {
   obLoginEmail = () => {
     if (!this.obCanLogin()) { this.setState({ obLoginErr: true }); return; }
     const email = this.state.obEmail.trim();
+    const pass = this.state.obPassword || '';
     const raw = email.split('@')[0].replace(/[^a-z0-9]+/gi, ' ').trim() || 'Ripper';
     const name = raw.charAt(0).toUpperCase() + raw.slice(1);
-    this.setState({ account: { name, email, provider: 'email' } });
-    this.obFinish();
+    const base = this._apiBase;
+    const finish = () => { this.setState({ account: { name, email, provider: 'email' }, obLoginErr: false, obAuthErrMsg: '' }); this.obFinish(); };
+    if (!base) { finish(); return; }
+    fetch(base + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass }) })
+      .then(r => r.json())
+      .then(res => {
+        if (res && res.token) {
+          try { localStorage.setItem('rr_token', res.token); localStorage.setItem('rr_email', email); } catch (_) {}
+          finish();
+          this.adoptHoldings();
+        } else {
+          this.setState({ obLoginErr: true, obAuthErrMsg: (res && res.error) || 'Wrong email or password.' });
+        }
+      })
+      .catch(() => this.setState({ obLoginErr: true, obAuthErrMsg: 'Network error - try again.' }));
   };
   obForgot = () => { if (/.+@.+\..+/.test((this.state.obEmail||'').trim())) this.setState({ obForgotSent: true, obLoginErr: false }); else this.setState({ obLoginErr: true }); };
   setAccName = (e) => this.setState(st => ({ account: { ...st.account, name: e.target.value } }));
@@ -4415,6 +4490,12 @@ class Component extends DCLogic {
       this.PKEYS.forEach(k => { o[k] = this.state[k]; });
       localStorage.setItem(this.SKEY, JSON.stringify(o));
     } catch (_) {}
+    // signed in → mirror collection changes to the server (debounced)
+    if (this._lastPulled !== this.state.pulled) {
+      this._lastPulled = this.state.pulled;
+      clearTimeout(this._syncT);
+      this._syncT = setTimeout(() => this.pushHoldings(), 1500);
+    }
     this.syncCamera();
   }
   componentDidMount(){ this.syncCamera(); this.connectBackend(); }
@@ -4457,6 +4538,19 @@ class Component extends DCLogic {
         this.catalog = this.db.cards;
         this._apiBase = base;
         this.forceUpdate();
+      }
+      // Restore the signed-in session: profile, scan quota, synced holdings.
+      if (this.authToken()) {
+        fetch(base + '/me', { headers: this.authHeaders() })
+          .then(r => (r.ok ? r.json() : null))
+          .then(me => {
+            if (!me) return;
+            const seed = (me.email || '').split('@')[0] || 'Ripper';
+            const name = (this.state.account && this.state.account.name) || seed.charAt(0).toUpperCase() + seed.slice(1);
+            this.setState({ account: { name, email: me.email, provider: 'email' }, scansLeft: typeof me.scansLeft === 'number' ? me.scansLeft : null });
+            this.adoptHoldings();
+          })
+          .catch(() => {});
       }
     } catch (_) { /* keep the built-in sample catalog */ }
   }
@@ -5447,6 +5541,10 @@ class Component extends DCLogic {
       removeOpen: !!st.removeCard, removeName: st.removeCard ? st.removeCard.name : '',
       openRemoveSelected: this.openRemoveSelected, closeRemove: this.closeRemove,
       scanMiss: st.scanMiss,
+      scanMissMsg: st.scanMissMsg || 'Couldn\u2019t read the card \u2014 try again closer, or add it via Search.',
+      hasScansLeft: st.scansLeft != null,
+      scansLeftStr: (st.scansLeft != null ? st.scansLeft : 0) + ' scans left',
+      obAuthErrMsg: st.obAuthErrMsg || 'Enter a valid email and password.',
       paidOpen: st.paidOpen, closePaid: this.closePaid, confirmPaid: this.confirmPaid, setPaidAmt: this.setPaidAmt,
       openPaidCard: this.openPaidCard, openPaidSealed: this.openPaidSealed,
       paidAmt: st.paidAmt, paidStr: this.money(Math.round(st.paidAmt || 0)),

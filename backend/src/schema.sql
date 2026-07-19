@@ -69,6 +69,9 @@ create table if not exists users (
   created_at    timestamptz not null default now()
 );
 alter table users add column if not exists password_hash text;
+alter table users add column if not exists plan text not null default 'free';
+alter table users add column if not exists scan_month text;          -- 'YYYY-MM' the counter applies to
+alter table users add column if not exists scans_used integer not null default 0;
 
 -- Bearer-token sessions (issued by /auth/register + /auth/login).
 create table if not exists sessions (

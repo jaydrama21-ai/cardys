@@ -67,11 +67,14 @@ export async function warmAccounts(): Promise<void> {
   const p = await pgPool();
   if (!p) return;
   try {
-    const users = await p.query(`select id, email, password_hash from users where email is not null`);
+    const users = await p.query(
+      `select id, email, password_hash, scan_month, scans_used from users where email is not null`
+    );
     for (const r of users.rows) {
       const u = { id: r.id, email: r.email, passwordHash: r.password_hash ?? "" };
       usersByEmail.set(u.email, u);
       usersById.set(u.id, u);
+      if (r.scan_month) scanMonths.set(r.id, { month: r.scan_month, used: r.scans_used ?? 0 });
     }
     const sess = await p.query(`select token, user_id from sessions`);
     for (const r of sess.rows) sessions.set(r.token, r.user_id);
@@ -152,6 +155,69 @@ export function userForToken(authHeader: string | undefined): User | null {
   return u ? { id: u.id, email: u.email } : null;
 }
 
+// ---- scan metering -----------------------------------------------------------
+// Free plan: FREE_SCANS per calendar month per account. Anonymous devices get
+// TRIAL_SCANS (in-memory — resets on restart, which only ever helps the user).
+// A global daily cap backstops the provider bill regardless of who's asking.
+
+const FREE_SCANS = Number(process.env.FREE_SCANS || 25);
+const TRIAL_SCANS = Number(process.env.TRIAL_SCANS || 3);
+const SCAN_DAILY_CAP = Number(process.env.SCAN_DAILY_CAP || 2000);
+
+const scanMonths = new Map<string, { month: string; used: number }>(); // userId -> counter
+const trialScans = new Map<string, number>(); // deviceId -> used
+let dayUsed = { day: "", used: 0 };
+
+const monthKey = () => new Date().toISOString().slice(0, 7);
+const dayKey = () => new Date().toISOString().slice(0, 10);
+
+export interface ScanGate {
+  allowed: boolean;
+  scansLeft: number;
+  reason?: "scan_limit" | "trial_limit" | "daily_cap";
+}
+
+/** Check-and-consume one scan for a user or anonymous device. */
+export async function consumeScan(userId: string | null, deviceId: string | null): Promise<ScanGate> {
+  if (dayUsed.day !== dayKey()) dayUsed = { day: dayKey(), used: 0 };
+  if (dayUsed.used >= SCAN_DAILY_CAP) return { allowed: false, scansLeft: 0, reason: "daily_cap" };
+
+  if (userId) {
+    let c = scanMonths.get(userId);
+    if (!c || c.month !== monthKey()) c = { month: monthKey(), used: 0 };
+    if (c.used >= FREE_SCANS) {
+      scanMonths.set(userId, c);
+      return { allowed: false, scansLeft: 0, reason: "scan_limit" };
+    }
+    c.used += 1;
+    scanMonths.set(userId, c);
+    dayUsed.used += 1;
+    persistScanCount(userId, c).catch(() => {});
+    return { allowed: true, scansLeft: FREE_SCANS - c.used };
+  }
+
+  const key = deviceId || "unknown";
+  const used = trialScans.get(key) ?? 0;
+  if (used >= TRIAL_SCANS) return { allowed: false, scansLeft: 0, reason: "trial_limit" };
+  trialScans.set(key, used + 1);
+  dayUsed.used += 1;
+  return { allowed: true, scansLeft: TRIAL_SCANS - used - 1 };
+}
+
+export function scansLeftFor(userId: string | null, deviceId: string | null): number {
+  if (userId) {
+    const c = scanMonths.get(userId);
+    return !c || c.month !== monthKey() ? FREE_SCANS : Math.max(0, FREE_SCANS - c.used);
+  }
+  return Math.max(0, TRIAL_SCANS - (trialScans.get(deviceId || "unknown") ?? 0));
+}
+
+async function persistScanCount(userId: string, c: { month: string; used: number }): Promise<void> {
+  const p = await pgPool();
+  if (!p) return;
+  await p.query(`update users set scan_month = $2, scans_used = $3 where id = $1`, [userId, c.month, c.used]);
+}
+
 // ---- holdings sync -----------------------------------------------------------
 
 export function getHoldings(userId: string): Holding[] {
@@ -166,8 +232,9 @@ export async function putHoldings(userId: string, incoming: unknown): Promise<Ho
   for (const h of incoming) {
     if (!h || typeof h !== "object" || typeof (h as any).cardId !== "string") continue;
     const x = h as any;
+    const isUuid = typeof x.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x.id);
     clean.push({
-      id: typeof x.id === "string" && x.id ? x.id : randomUUID(),
+      id: isUuid ? x.id : randomUUID(), // app-local ids aren't uuids; mint one
       cardId: x.cardId,
       lang: typeof x.lang === "string" ? x.lang : "EN",
       grade: typeof x.grade === "string" ? x.grade : null,

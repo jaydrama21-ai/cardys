@@ -5,6 +5,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import type { Company, Grade, Lang } from "./types.js";
 import { db, loadCatalog } from "./db.js";
 import { priceRaw, priceGraded, gradedAbs, histFor } from "./pricing.js";
@@ -17,6 +18,7 @@ import { register, login, userForToken, getHoldings, putHoldings, warmAccounts }
 
 const app = express();
 app.use(cors());
+app.use(compression()); // /cards is ~7MB of JSON for the full catalog; gzip ≈ 8×
 app.use(express.json({ limit: "12mb" })); // room for base64 scan frames
 
 // Serve the PWA build (repo-root deploy/) at / when it exists, so one origin
@@ -145,11 +147,11 @@ app.listen(port, async () => {
       warmPriceCache(await loadPriceCompsFromPg());
       warmHistoryCache(await loadPriceHistoryFromPg());
     }
-    const setLimit = Number(process.env.CATALOG_SET_LIMIT || 40);
+    const setLimit = Number(process.env.CATALOG_SET_LIMIT || 0);
     const RETRY_MS = 10 * 60 * 1000; // failed fetch → try again in 10 min
     const REFRESH_MS = 24 * 60 * 60 * 1000; // success → refresh daily
     const refreshCatalog = async () => {
-      console.log(`Loading live catalog from Pokémon TCG API (latest ${setLimit} sets)…`);
+      console.log(setLimit > 0 ? `Loading live catalog (latest ${setLimit} sets)…` : "Loading FULL live catalog (all sets)…");
       try {
         const cat = await loadLiveCatalog(setLimit);
         if (!cat.cards.length) throw new Error("API returned 0 cards");

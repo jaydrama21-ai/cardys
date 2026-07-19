@@ -15,7 +15,7 @@ async function main() {
   if (!process.env.POKEMONTCG_API_KEY) {
     console.log("No POKEMONTCG_API_KEY set — fetching keyless (lower rate limits).");
   }
-  const setLimit = Number(process.env.CATALOG_SET_LIMIT || 40);
+  const setLimit = Number(process.env.CATALOG_SET_LIMIT || 0);
   console.log(`Fetching latest ${setLimit} sets from the Pokémon TCG API…`);
   const cat = await loadLiveCatalog(setLimit);
   loadCatalog({ cards: cat.cards, sets: cat.sets, products: PRODUCTS });

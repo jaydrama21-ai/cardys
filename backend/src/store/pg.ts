@@ -110,17 +110,27 @@ export async function saveCatalogToPg(cards: Card[], sets: CardSet[]): Promise<b
         [s.code, s.name, s.released]
       );
     }
-    for (const c of cards) {
+    // Multi-row upserts, 500 cards per statement — the full ~19k-card catalog
+    // persists in seconds instead of one round trip per card.
+    const CHUNK = 500;
+    for (let i = 0; i < cards.length; i += CHUNK) {
+      const chunk = cards.slice(i, i + CHUNK);
+      const values: unknown[] = [];
+      const rows = chunk.map((c, j) => {
+        values.push(c.id, c.name, c.set, c.num, c.rarity, c.variant, c.tier, c.chase ?? false, c.langs, c.raw, c.psa10 ?? null, c.chg, c.img ?? null, c.img2 ?? null);
+        const o = j * 14;
+        return `($${o + 1},$${o + 2},$${o + 3},$${o + 4},$${o + 5},$${o + 6},$${o + 7},$${o + 8},$${o + 9},$${o + 10},$${o + 11},$${o + 12},$${o + 13},$${o + 14})`;
+      });
       await client.query(
         `insert into cards (id, name, "set", num, rarity, variant, tier, chase, langs, raw, psa10, chg, img, img2)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         values ${rows.join(",")}
          on conflict (id) do update set
            name = excluded.name, "set" = excluded."set", num = excluded.num,
            rarity = excluded.rarity, variant = excluded.variant, tier = excluded.tier,
            chase = excluded.chase, langs = excluded.langs, raw = excluded.raw,
            psa10 = coalesce(excluded.psa10, cards.psa10), chg = excluded.chg,
            img = coalesce(excluded.img, cards.img), img2 = coalesce(excluded.img2, cards.img2)`,
-        [c.id, c.name, c.set, c.num, c.rarity, c.variant, c.tier, c.chase ?? false, c.langs, c.raw, c.psa10 ?? null, c.chg, c.img ?? null, c.img2 ?? null]
+        values
       );
     }
     await client.query("commit");

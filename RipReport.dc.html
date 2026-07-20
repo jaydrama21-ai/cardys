@@ -5545,10 +5545,11 @@ class Component extends DCLogic {
       :                              { txt:'Switching to Plus on ' + sched.untilStr + '. Comps & alerts stay.', color:'#22D3EE', bg:'rgba(34,211,238,0.10)', border:'rgba(34,211,238,0.28)', cta:'Stay on Pro' };
     const billMonthly = { active:!annual, bg:!annual?'rgba(232,233,240,0.08)':'transparent', color:!annual?'#E8E9F0':'#8B90A8', border:!annual?'#2a2f42':'transparent', pick:()=>this.setBilling('monthly') };
     const billAnnual = { active:annual, bg:annual?'rgba(232,233,240,0.08)':'transparent', color:annual?'#E8E9F0':'#8B90A8', border:annual?'#2a2f42':'transparent', pick:()=>this.setBilling('annual') };
-    const coMeta = { plus:{label:'Plus',color:'#22D3EE'}, pro:{label:'Pro',color:'#F5C542'}, free:{label:'Free',color:'#8B90A8'} }[st.coPlan] || {label:'Pro',color:'#F5C542'};
-    const coPer = annual ? planPricing[st.coPlan].a : planPricing[st.coPlan].m;
-    const coBilled = annual ? planPricing[st.coPlan].a * 12 : coPer;
-    const coFeats = feats[st.coPlan] || feats.pro;
+    const coPlanKey = planPricing[st.coPlan] ? st.coPlan : 'pro';
+    const coMeta = { plus:{label:'Plus',color:'#22D3EE'}, pro:{label:'Pro',color:'#F5C542'}, free:{label:'Free',color:'#8B90A8'} }[coPlanKey] || {label:'Pro',color:'#F5C542'};
+    const coPer = annual ? planPricing[coPlanKey].a : planPricing[coPlanKey].m;
+    const coBilled = annual ? planPricing[coPlanKey].a * 12 : coPer;
+    const coFeats = feats[coPlanKey] || feats.pro;
 
     // ---- scan failure states ----
     const rawScanIssue = this.props.scanIssue || 'none';

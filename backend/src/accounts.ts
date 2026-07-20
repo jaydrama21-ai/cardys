@@ -189,6 +189,28 @@ export function userForToken(authHeader: string | undefined): User | null {
   return u ? { id: u.id, email: u.email } : null;
 }
 
+/** Delete a user and everything attached — sessions, holdings, counters. */
+export async function deleteUser(userId: string): Promise<boolean> {
+  const u = usersById.get(userId);
+  if (!u) return false;
+  usersById.delete(userId);
+  usersByEmail.delete(u.email);
+  holdingsByUser.delete(userId);
+  scanMonths.delete(userId);
+  for (const [token, uid] of sessions) if (uid === userId) sessions.delete(token);
+  const p = await pgPool();
+  if (p) {
+    try {
+      await p.query(`delete from holdings where user_id = $1`, [userId]);
+      await p.query(`delete from sessions where user_id = $1`, [userId]);
+      await p.query(`delete from users where id = $1`, [userId]);
+    } catch (e) {
+      console.error("user delete persist failed:", e);
+    }
+  }
+  return true;
+}
+
 // ---- scan metering -----------------------------------------------------------
 // Free plan: FREE_SCANS per calendar month per account. Anonymous devices get
 // TRIAL_SCANS (in-memory — resets on restart, which only ever helps the user).

@@ -14,7 +14,7 @@ import { loadLiveCatalog } from "./catalog.js";
 import { PRODUCTS } from "./mock.js";
 import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceCompsFromPg, loadPriceHistoryFromPg } from "./store/pg.js";
 import { warmPriceCache, warmHistoryCache, compMeta } from "./priceCache.js";
-import { register, login, loginWithGoogle, userForToken, getHoldings, putHoldings, warmAccounts, consumeScan, scansLeftFor } from "./accounts.js";
+import { register, login, loginWithGoogle, userForToken, getHoldings, putHoldings, warmAccounts, consumeScan, scansLeftFor, deleteUser } from "./accounts.js";
 
 const app = express();
 app.use(cors());
@@ -115,6 +115,12 @@ app.get("/me", (req, res) => {
   const user = userForToken(req.headers.authorization);
   if (!user) return res.status(401).json({ error: "unauthorized" });
   return res.json({ ...user, scansLeft: scansLeftFor(user.id, null) });
+});
+app.delete("/me", async (req, res) => {
+  const user = userForToken(req.headers.authorization);
+  if (!user) return res.status(401).json({ error: "unauthorized" });
+  await deleteUser(user.id);
+  return res.json({ ok: true });
 });
 app.get("/holdings", (req, res) => {
   const user = userForToken(req.headers.authorization);

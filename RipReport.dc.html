@@ -356,6 +356,22 @@
               </div>
             </div>
           </sc-for>
+          <sc-if value="{{ hasLedger }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:10px; font-weight:600; letter-spacing:0.16em; color:#8B90A8; margin: 20px 2px 10px;">COST BASIS LEDGER</div>
+          <div style="background:#12141D; border:1px solid #1D2130; border-radius:14px; overflow:hidden;">
+            <sc-for list="{{ ledgerRows }}" as="lg" hint-placeholder-count="4">
+              <div onClick="{{ lg.open }}" style="display:flex; align-items:center; gap:11px; padding:12px 14px; border-bottom:1px solid #1D2130; cursor:pointer;">
+                <span style="display:inline-flex; width:24px; height:24px; align-items:center; justify-content:center; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:{{ lg.tc }}; background:{{ lg.tbg }};">{{ lg.tier }}</span>
+                <div style="flex:1; min-width:0;">
+                  <div style="font-size:13px; font-weight:600; color:#E8E9F0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ lg.name }}</div>
+                  <div style="font-family:'JetBrains Mono',monospace; font-size:10px; color:#5a5f74; margin-top:2px;">{{ lg.flowStr }}</div>
+                </div>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:700; color:{{ lg.pnlColor }};">{{ lg.pnlStr }}</span>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+
           </sc-if>
         </div>
         </sc-if>
@@ -1278,7 +1294,7 @@
           <!-- ledger -->
           <div style="font-size:10px; font-weight:600; letter-spacing:0.16em; color:#8B90A8; margin:20px 2px 10px;">SOLD · {{ realFlips }}</div>
           <sc-for list="{{ realRowsV }}" as="r" hint-placeholder-count="4">
-            <div style="display:flex; align-items:center; gap:12px; padding:12px; background:#12141D; border:1px solid #1D2130; border-radius:12px; margin-bottom:8px;">
+            <div onClick="{{ r.editSale }}" style="display:flex; align-items:center; gap:12px; padding:12px; background:#12141D; border:1px solid #1D2130; border-radius:12px; margin-bottom:8px; cursor:pointer;">
               <span style="width:24px; height:24px; border-radius:6px; background:{{ r.tbg }}; color:{{ r.tc }}; display:flex; align-items:center; justify-content:center; flex-shrink:0;"><b style="font-family:'JetBrains Mono',monospace; font-size:11px;">{{ r.tier }}</b></span>
               <div style="flex:1; min-width:0;">
                 <div style="font-size:13.5px; font-weight:600; color:#E8E9F0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.name }}</div>
@@ -1329,6 +1345,13 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="{{ trackStarFill }}" stroke="{{ trackStarStroke }}" stroke-width="1.8" stroke-linejoin="round"><path d="M12 2 15 9l7 .6-5.3 4.6L18.4 22 12 18l-6.4 4 1.7-7.8L2 9.6 9 9z"/></svg>
             </span>
           </div>
+
+          <sc-if value="{{ hasDetailMeta }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; align-items:center; gap:6px; margin:-6px 2px 12px;">
+            <span style="width:6px; height:6px; border-radius:999px; background:#57D9A3;"></span>
+            <span style="font-family:'JetBrains Mono',monospace; font-size:10.5px; color:#8B90A8;">real comps: {{ detailMetaStr }}</span>
+          </div>
+          </sc-if>
 
           <!-- display currency -->
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px;">
@@ -1727,6 +1750,10 @@
           <div style="display:flex; align-items:center; gap:6px; margin:10px 2px 0;">
             <span style="font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; color:{{ product.holdTrendColor }};">{{ product.holdTrendStr }}</span>
             <span style="font-size:11px; color:#8B90A8;">sealed price · modeled</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; margin:6px 2px 0;">
+            <span style="font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; color:#E8E9F0;">{{ product.feeNetStr }}</span>
+            <span style="font-size:11px; color:#8B90A8;">nets after ~13% resale fees</span>
           </div>
 
           <!-- top chases per box -->
@@ -2794,6 +2821,10 @@
                 <span style="color:#F5C542; display:flex;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 7v6c0 5 3.5 7.5 8 9 4.5-1.5 8-4 8-9V7l-8-5z"/><path d="m9 12 2 2 4-4"/></svg></span>
                 <span style="font-size:14.5px; font-weight:600; color:#E8E9F0;">Submit for grading</span>
               </div>
+              <div onClick="{{ quickEditCost }}" style="display:flex; align-items:center; gap:13px; padding:15px; background:#12141D; border:1px solid #1D2130; border-radius:13px; cursor:pointer;">
+                <span style="color:#22D3EE; display:flex;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></span>
+                <span style="font-size:14.5px; font-weight:600; color:#E8E9F0;">Edit paid price</span>
+              </div>
               <div onClick="{{ quickRemove }}" style="display:flex; align-items:center; gap:13px; padding:15px; background:#12141D; border:1px solid #1D2130; border-radius:13px; cursor:pointer;">
                 <span style="color:#F26D7E; display:flex;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></span>
                 <span style="font-size:14.5px; font-weight:600; color:#E8E9F0;">Remove from collection</span>
@@ -2804,15 +2835,33 @@
         </div>
       </sc-if>
 
+      <!-- undo snackbar -->
+      <sc-if value="{{ hasSnack }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute; left:14px; right:14px; bottom:96px; z-index:58; display:flex; align-items:center; gap:12px; padding:13px 15px; border-radius:13px; background:#171a24; border:1px solid #2a2f42; box-shadow:0 16px 34px -12px rgba(0,0,0,0.8);">
+          <div style="flex:1; min-width:0; font-size:13px; font-weight:600; color:#E8E9F0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ snack }}</div>
+          <span onClick="{{ snackUndo }}" style="font-size:13px; font-weight:700; color:#F5C542; cursor:pointer; padding:4px 6px;">Undo</span>
+        </div>
+      </sc-if>
+
       <!-- what-did-you-pay sheet -->
       <sc-if value="{{ paidOpen }}" hint-placeholder-val="{{ false }}">
         <div onClick="{{ closePaid }}" style="position:absolute; inset:0; z-index:60; background:rgba(5,6,10,0.82); backdrop-filter:blur(6px); display:flex; align-items:flex-end;">
           <div onClick="{{ stopEv }}" style="width:100%; background:#0e1017; border-top:1px solid #1D2130; border-radius:22px 22px 0 0; padding:20px 20px 26px; box-shadow:0 -20px 50px -12px rgba(0,0,0,0.7);">
             <div style="width:38px; height:4px; border-radius:999px; background:#2a2f42; margin:0 auto 18px;"></div>
-            <div style="font-size:17px; font-weight:700; color:#E8E9F0;">What did you pay?</div>
-            <div style="font-size:12.5px; color:#8B90A8; line-height:1.55; margin-top:6px;">Logs your real cost basis — market is {{ paidMarketStr }} right now.</div>
+            <div style="font-size:17px; font-weight:700; color:#E8E9F0;">{{ paidTitle }}</div>
+            <div style="font-size:12.5px; color:#8B90A8; line-height:1.55; margin-top:6px;">{{ paidSub }}</div>
             <input type="number" inputmode="decimal" min="0" step="1" value="{{ paidAmt }}" onInput="{{ setPaidAmt }}" style="margin-top:16px; width:100%; box-sizing:border-box; background:#12141D; border:1px solid #1D2130; border-radius:12px; padding:14px 15px; color:#E8E9F0; font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700; outline:none;" />
-            <button onClick="{{ confirmPaid }}" style="margin-top:14px; width:100%; border:none; border-radius:12px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:700; color:#0B0D13; background:#F5C542; cursor:pointer;">Add &middot; paid {{ paidStr }}</button>
+            <sc-if value="{{ paidShowQty }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:12px; display:flex; align-items:center; justify-content:space-between; background:#12141D; border:1px solid #1D2130; border-radius:12px; padding:10px 15px;">
+              <span style="font-size:13px; color:#8B90A8;">Quantity</span>
+              <div style="display:flex; align-items:center; gap:14px;">
+                <span onClick="{{ paidQtyDown }}" style="width:32px; height:32px; border-radius:9px; background:#0B0D13; border:1px solid #1D2130; display:flex; align-items:center; justify-content:center; color:#E8E9F0; font-size:18px; cursor:pointer;">&minus;</span>
+                <span style="font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700; color:#E8E9F0; min-width:22px; text-align:center;">{{ paidQty }}</span>
+                <span onClick="{{ paidQtyUp }}" style="width:32px; height:32px; border-radius:9px; background:#0B0D13; border:1px solid #1D2130; display:flex; align-items:center; justify-content:center; color:#E8E9F0; font-size:18px; cursor:pointer;">+</span>
+              </div>
+            </div>
+            </sc-if>
+            <button onClick="{{ confirmPaid }}" style="margin-top:14px; width:100%; border:none; border-radius:12px; padding:15px; font-family:'Geist',sans-serif; font-size:14px; font-weight:700; color:#0B0D13; background:#F5C542; cursor:pointer;">{{ paidBtnStr }}</button>
             <div onClick="{{ closePaid }}" style="margin-top:14px; text-align:center; font-size:13px; color:#8B90A8; cursor:pointer;">Cancel</div>
           </div>
         </div>
@@ -3300,6 +3349,11 @@ class Component extends DCLogic {
       removeCard: null,
       sellPrice: 0,
       soldPrices: {},
+      costEdits: {},
+      detailMeta: null,
+      snack: null,
+      paidQty: 1,
+      paidTargetId: null,
       selLang: this.deviceLang,
       selGrader: 'Raw',
       selGrade: 10,
@@ -3479,7 +3533,7 @@ class Component extends DCLogic {
     // ---- persistence: rehydrate the user-data slice so scans, sells,
     // spend, targets and grading orders survive a reload (autosaved in
     // componentDidUpdate). Everything else is derived or transient UI. ----
-    this.PKEYS = ['spent','pulled','sessionAnchor','qi','sold','removed','soldPrices','offsets','trackedIds','alerts','alertsSeen','centeringPinned','gradingOrders','gradingIds','subSchedule','cur','homeMarket','account','onboarded'];
+    this.PKEYS = ['spent','pulled','sessionAnchor','qi','sold','removed','soldPrices','costEdits','offsets','trackedIds','alerts','alertsSeen','centeringPinned','gradingOrders','gradingIds','subSchedule','cur','homeMarket','account','onboarded'];
     try {
       const rawSaved = localStorage.getItem(this.SKEY);
       if (rawSaved) {
@@ -3830,6 +3884,12 @@ class Component extends DCLogic {
     this.setState({ scanMode: m, scanState: 'idle', current: null, binderResult: null, binderScanning: false });
   };
   viewfinderTap = () => {
+    // Batch/binder still run the scripted demo — don't let them pretend when
+    // real recognition is connected.
+    if (this._apiBase && (this.state.scanMode === 'binder' || this.state.scanMode === 'batch')) {
+      this.scanMissed('Batch & binder scanning are coming soon - single scans are live.');
+      return;
+    }
     if (this.state.scanMode === 'binder') {
       if (!this.state.binderResult) this.scanBinder();
     } else if (this.state.scanMode === 'batch') {
@@ -4030,6 +4090,7 @@ class Component extends DCLogic {
     const c = this.state.removeCard; if (!c) return;
     this.setState(st => ({ removed: [...st.removed, c.id], removeCard: null }),
       () => { if (this.state.screen === 'detail') this.back(); });
+    this.showSnack('Removed ' + c.name, () => this.setState(st => ({ removed: (st.removed || []).filter(id => id !== c.id) })));
   };
 
   // ---- targets / tracking ----
@@ -4212,6 +4273,7 @@ class Component extends DCLogic {
       evMultStr: (boxEV / p.market).toFixed(2) + '×',
       breakEvenStr: this.money(p.market),
       hold90Str: this.money(hold90),
+      feeNetStr: this.money(Math.round(p.market * 0.87)),
       hold90DeltaStr: (holdDelta>=0?'+':'−') + '$' + Math.abs(Math.round(holdDelta)).toLocaleString(),
       hold90Color: holdDelta>=0 ? '#57D9A3' : '#F26D7E',
       holdTrendStr: (trend30>=0?'▲ +':'▼ ') + trend30 + '% · 30d',
@@ -4250,6 +4312,14 @@ class Component extends DCLogic {
 
   openCard = (card) => {
     const dbc = (card.cardId && this.cardById(card.cardId)) || this.cardByName(card.name) || null;
+    // real-comp provenance for the detail price, when the backend has it
+    this.setState({ detailMeta: null });
+    if (this._apiBase && dbc) {
+      fetch(this._apiBase + '/price/raw/' + encodeURIComponent(dbc.id) + '?lang=EN')
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => { if (j && j.meta) this.setState({ detailMeta: j.meta }); })
+        .catch(() => {});
+    }
     const raw = dbc ? dbc.raw : (card.value || 0);
     const psa10 = dbc ? this.priceGraded(dbc,'PSA',10,'EN') : Math.round(raw*4);
     const psa9 = dbc ? this.priceGraded(dbc,'PSA',9,'EN') : Math.round(raw*1.9);
@@ -4394,7 +4464,11 @@ class Component extends DCLogic {
       this._accT = setTimeout(() => this.setState({ accArm: false }), 4000);
       return;
     }
-    try { localStorage.removeItem(this.SKEY); } catch (_) {}
+    const base = this._apiBase;
+    if (base && this.authToken()) {
+      fetch(base + '/me', { method: 'DELETE', headers: this.authHeaders() }).catch(() => {});
+    }
+    try { localStorage.removeItem(this.SKEY); localStorage.removeItem('rr_token'); localStorage.removeItem('rr_email'); } catch (_) {}
     if (typeof location !== 'undefined' && location.reload) location.reload();
   };
 
@@ -4462,7 +4536,7 @@ class Component extends DCLogic {
   openPaidCard = () => {
     const sel = this.state.selected; if (!sel || !sel.cardId) return;
     const c = this.cardById(sel.cardId); if (!c) return;
-    this.setState({ paidOpen: true, paidKind: 'card', paidAmt: Math.round(c.raw) });
+    this.setState({ paidOpen: true, paidKind: 'card', paidQty: 1, paidTargetId: null, paidAmt: Math.round(c.raw) });
   };
   openPaidSealed = () => {
     const p = this.state.product; if (!p) return;
@@ -4470,6 +4544,23 @@ class Component extends DCLogic {
   };
   setPaidAmt = (e) => { const v = parseFloat(e.target.value); this.setState({ paidAmt: isNaN(v) ? 0 : v }); };
   scanBannerTap = () => { if (!this.authToken()) this.goWelcome(); };
+  quickEditCost = () => { const c = this.state.quickCard; this.closeQuick(); if (c) this.setState({ paidOpen: true, paidKind: 'edit', paidTargetId: c.id, paidQty: 1, paidAmt: Math.round(c.cost || 0) }); };
+  openEditSold = (r) => this.setState({ paidOpen: true, paidKind: 'editSold', paidTargetId: r.id, paidQty: 1, paidAmt: Math.round(r.sale || 0) });
+  paidQtyUp = () => this.setState(st => ({ paidQty: Math.min(99, (st.paidQty || 1) + 1) }));
+  paidQtyDown = () => this.setState(st => ({ paidQty: Math.max(1, (st.paidQty || 1) - 1) }));
+  showSnack = (msg, undoFn) => {
+    this._snackUndo = undoFn || null;
+    clearTimeout(this._snackT);
+    this.setState({ snack: msg });
+    this._snackT = setTimeout(() => this.setState({ snack: null }), 5000);
+  };
+  snackUndo = () => {
+    const fn = this._snackUndo;
+    this._snackUndo = null;
+    clearTimeout(this._snackT);
+    this.setState({ snack: null });
+    if (fn) fn();
+  };
   closePaid = () => this.setState({ paidOpen: false });
   confirmPaid = () => {
     const st = this.state;
@@ -4478,10 +4569,40 @@ class Component extends DCLogic {
       this.setState(s => ({ spent: s.spent + paid, productLogged: true, paidOpen: false }));
       return;
     }
+    if (st.paidKind === 'edit') {
+      const id = st.paidTargetId;
+      if (id != null) {
+        const prev = (st.costEdits || {})[id];
+        this.setState(s => ({ costEdits: { ...(s.costEdits || {}), [id]: paid }, paidOpen: false }));
+        this.showSnack('Paid price updated to ' + this.money(paid), () => this.setState(s => {
+          const ce = { ...(s.costEdits || {}) };
+          if (prev == null) delete ce[id]; else ce[id] = prev;
+          return { costEdits: ce };
+        }));
+      } else this.setState({ paidOpen: false });
+      return;
+    }
+    if (st.paidKind === 'editSold') {
+      const id = st.paidTargetId;
+      if (id != null) {
+        const prev = (st.soldPrices || {})[id];
+        this.setState(s => ({ soldPrices: { ...(s.soldPrices || {}), [id]: paid }, paidOpen: false }));
+        this.showSnack('Sale price updated to ' + this.money(paid), () => this.setState(s => ({ soldPrices: { ...(s.soldPrices || {}), [id]: prev } })));
+      } else this.setState({ paidOpen: false });
+      return;
+    }
     const sel = st.selected; if (!sel || !sel.cardId) return this.setState({ paidOpen: false });
     const c = this.cardById(sel.cardId); if (!c) return this.setState({ paidOpen: false });
-    const card = { cardId:c.id, name:c.name, set:c.set, variant:c.variant, tier:c.tier, value:c.raw, chase:!!c.chase, id:'add-'+c.id+'-'+Date.now().toString(36), lang:'EN', grade:null, cost: paid };
-    this.setState(s => ({ pulled:[...s.pulled, card], paidOpen: false }));
+    const qty = Math.max(1, st.paidQty || 1);
+    const stamp = Date.now().toString(36);
+    const adds = [];
+    for (let i = 0; i < qty; i++) {
+      adds.push({ cardId:c.id, name:c.name, set:c.set, variant:c.variant, tier:c.tier, value:c.raw, chase:!!c.chase, id:'add-'+c.id+'-'+stamp+'-'+i, lang:'EN', grade:null, cost: paid });
+    }
+    const ids = adds.map(a => a.id);
+    this.setState(s => ({ pulled:[...s.pulled, ...adds], paidOpen: false }));
+    this.showSnack('Added ' + (qty > 1 ? qty + 'x ' : '') + c.name + ' - paid ' + this.money(paid) + (qty > 1 ? ' each' : ''), () =>
+      this.setState(s => ({ pulled: (s.pulled || []).filter(p => !ids.includes(p.id)) })));
   };
 
   submitGrading = () => {
@@ -4512,12 +4633,13 @@ class Component extends DCLogic {
   // and the grading picker so a scanned card really enters the collection.
   heldSource(){
     const st = this.state;
+    const ce = st.costEdits || {};
     const pulls = (st.pulled || []).map(p => ({
       ...p,
-      cost: p.cost != null ? p.cost : 0,
+      cost: ce[p.id] != null ? ce[p.id] : (p.cost != null ? p.cost : 0),
       change: (this.cardById(p.cardId) || {}).chg != null ? this.cardById(p.cardId).chg : (p.change || 0),
     }));
-    return [...this.heldBase, ...pulls];
+    return [...this.heldBase.map(h => (ce[h.id] != null ? { ...h, cost: ce[h.id] } : h)), ...pulls];
   }
   heldById(id){ return this.heldSource().find(h => h.id === id) || null; }
 
@@ -4867,6 +4989,7 @@ class Component extends DCLogic {
     const realBest = realRows.slice().sort((a,b)=> b.pnlNum - a.pnlNum)[0];
     const realWorst = realRows.slice().sort((a,b)=> a.pnlNum - b.pnlNum)[0];
     const realRowsV = realRows.map(r => ({
+      id: r.id, editSale: () => this.openEditSold(r),
       name:r.name, set:r.set, tier:r.tier, tc:r.tc, tbg:r.tbg,
       flowStr: this.money(Math.round(r.cost)) + ' → ' + this.money(Math.round(r.sale)),
       holdStr: 'held ' + r.holdDays + 'd',
@@ -4888,6 +5011,19 @@ class Component extends DCLogic {
     const anaHeld = held;
     const heldValue = anaHeld.reduce((a,h)=> a + (h.value||0), 0) || 1;
     const heldCost  = anaHeld.reduce((a,h)=> a + (h.cost||0), 0);
+    // Cost-basis ledger: every holding with a real paid price, best gain first.
+    const ledgerRows = anaHeld
+      .filter(h => (h.cost || 0) > 0)
+      .map(h => ({ h, pnl: (h.value || 0) - h.cost }))
+      .sort((a, b) => b.pnl - a.pnl)
+      .slice(0, 30)
+      .map(({ h, pnl }) => ({
+        name: h.name, tier: h.tier, tc: this.tm(h.tier).c, tbg: this.tm(h.tier).b,
+        flowStr: 'paid ' + this.money(Math.round(h.cost)) + ' \u2192 now ' + this.money(Math.round(h.value || 0)),
+        pnlStr: this.signed(Math.round(pnl)),
+        pnlColor: pnl >= 0 ? '#57D9A3' : '#F26D7E',
+        open: () => this.openCard({ cardId: h.cardId, name: h.name, set: h.set, tier: h.tier, value: h.value, img: h.img }),
+      }));
     // headline value stays consistent with Home/Portfolio ($2,354/$1,912);
     // proportions (tiers, sets, movers, move %) derive from live holdings.
     const invValue  = empty ? 0 : Math.round(heldValue); // real: derives from actual holdings (Shiny import) in both builds
@@ -5598,12 +5734,30 @@ class Component extends DCLogic {
       removeOpen: !!st.removeCard, removeName: st.removeCard ? st.removeCard.name : '',
       openRemoveSelected: this.openRemoveSelected, closeRemove: this.closeRemove,
       scanMiss: st.scanMiss, scanBannerTap: this.scanBannerTap,
+      ledgerRows, hasLedger: ledgerRows.length > 0,
+      hasDetailMeta: !!st.detailMeta,
+      detailMetaStr: st.detailMeta
+        ? st.detailMeta.source + ' \u00b7 ' + st.detailMeta.comps + ' comps' + (st.detailMeta.lastSoldHrs != null
+            ? ' \u00b7 ' + (st.detailMeta.lastSoldHrs < 48 ? st.detailMeta.lastSoldHrs + 'h ago' : Math.round(st.detailMeta.lastSoldHrs / 24) + 'd ago')
+            : '')
+        : '',
       scanMissMsg: st.scanMissMsg || 'Couldn\u2019t read the card \u2014 try again closer, or add it via Search.',
       hasScansLeft: st.scansLeft != null,
       scansLeftStr: (st.scansLeft != null ? st.scansLeft : 0) + ' scans left',
       obAuthErrMsg: st.obAuthErrMsg || 'Enter a valid email and password.',
       paidOpen: st.paidOpen, closePaid: this.closePaid, confirmPaid: this.confirmPaid, setPaidAmt: this.setPaidAmt,
       openPaidCard: this.openPaidCard, openPaidSealed: this.openPaidSealed,
+      paidQty: st.paidQty || 1, paidQtyUp: this.paidQtyUp, paidQtyDown: this.paidQtyDown,
+      paidShowQty: st.paidKind === 'card',
+      paidTitle: st.paidKind === 'editSold' ? 'Edit sale price' : st.paidKind === 'edit' ? 'Edit paid price' : 'What did you pay?',
+      paidSub: st.paidKind === 'edit' ? 'Only changes your logged cost basis.'
+        : st.paidKind === 'editSold' ? 'Only changes the logged sale price.'
+        : 'Logs your real cost basis \u2014 market is ' + (st.paidKind === 'sealed'
+            ? this.money(Math.round((st.product && st.product.market) || 0))
+            : this.money(Math.round(((st.selected && st.selected.cardId && this.cardById(st.selected.cardId)) || { raw: 0 }).raw))) + ' right now.',
+      paidBtnStr: (st.paidKind === 'edit' || st.paidKind === 'editSold' ? 'Save' : 'Add') + ' \u00b7 ' + this.money(Math.round(st.paidAmt || 0)),
+      quickEditCost: this.quickEditCost,
+      snack: st.snack, hasSnack: !!st.snack, snackUndo: this.snackUndo,
       paidAmt: st.paidAmt, paidStr: this.money(Math.round(st.paidAmt || 0)),
       paidMarketStr: this.money(st.paidKind === 'sealed'
         ? Math.round((st.product && st.product.market) || 0)

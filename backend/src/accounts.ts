@@ -125,6 +125,40 @@ export async function register(email: string, password: string): Promise<{ token
   return { token, user: { id: user.id, email: em } };
 }
 
+/** Google sign-in: verify the GIS id_token, then find-or-create by email. */
+export async function loginWithGoogle(credential: string): Promise<{ token: string; user: User } | { error: string }> {
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  if (!clientId) return { error: "google sign-in not configured" };
+  try {
+    const r = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`,
+      { signal: AbortSignal.timeout(10_000) }
+    );
+    if (!r.ok) return { error: "invalid google credential" };
+    const info: any = await r.json();
+    if (info.aud !== clientId) return { error: "credential is for a different app" };
+    if (info.email_verified !== "true" && info.email_verified !== true) return { error: "google email not verified" };
+    const em = String(info.email || "").toLowerCase();
+    if (!em) return { error: "no email in credential" };
+    let u = usersByEmail.get(em);
+    if (!u) {
+      u = { id: randomUUID(), email: em, passwordHash: "" }; // OAuth-only account
+      usersByEmail.set(em, u);
+      usersById.set(u.id, u);
+      const p = await pgPool();
+      if (p) {
+        await p
+          .query(`insert into users (id, email, password_hash) values ($1,$2,null) on conflict (email) do nothing`, [u.id, em])
+          .catch((e: unknown) => console.error("google user persist failed:", e));
+      }
+    }
+    const token = await issueToken(u.id);
+    return { token, user: { id: u.id, email: em } };
+  } catch {
+    return { error: "could not verify google credential" };
+  }
+}
+
 export async function login(email: string, password: string): Promise<{ token: string; user: User } | { error: string }> {
   const u = usersByEmail.get(email.trim().toLowerCase());
   if (!u || !u.passwordHash || !verifyPassword(password, u.passwordHash)) {

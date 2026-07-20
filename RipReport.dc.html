@@ -364,7 +364,7 @@
         <sc-if value="{{ isScan }}" hint-placeholder-val="{{ false }}">
         <div data-screen-label="Scan" style="position:relative; height: 100%; background:#07080c;">
         <sc-if value="{{ scanMiss }}" hint-placeholder-val="{{ false }}">
-          <div style="position:absolute; left:16px; right:16px; bottom:112px; z-index:50; background:rgba(14,16,23,0.92); border:1px solid #1D2130; border-radius:12px; padding:12px 14px; font-size:12.5px; color:#E8E9F0; text-align:center;">{{ scanMissMsg }}</div>
+          <div onClick="{{ scanBannerTap }}" style="position:absolute; left:16px; right:16px; bottom:112px; z-index:50; background:rgba(14,16,23,0.92); border:1px solid #1D2130; border-radius:12px; padding:12px 14px; font-size:12.5px; color:#E8E9F0; text-align:center; cursor:pointer;">{{ scanMissMsg }}</div>
         </sc-if>
         <sc-if value="{{ hasScansLeft }}" hint-placeholder-val="{{ false }}">
           <div style="position:absolute; top:64px; right:16px; z-index:50; background:rgba(14,16,23,0.85); border:1px solid #1D2130; border-radius:999px; padding:6px 12px; font-family:'JetBrains Mono',monospace; font-size:11px; color:#8B90A8;">{{ scansLeftStr }}</div>
@@ -3717,6 +3717,53 @@ class Component extends DCLogic {
   };
 
   // ---- real accounts: token, device id, holdings sync -----------------------
+  // Google sign-in via Google Identity Services; client id comes from the
+  // backend's /auth/config so no rebuild is needed to enable it.
+  googleReady = () => new Promise((resolve) => {
+    if (window.google && window.google.accounts) { resolve(true); return; }
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = () => resolve(true);
+    s.onerror = () => resolve(false);
+    document.head.appendChild(s);
+  });
+  googleSignIn = (after) => {
+    const base = this._apiBase;
+    const cid = this._googleClientId;
+    const errMode = after === 'create' ? 'email' : 'loginEmail';
+    if (!base || !cid) { this.setState({ obAuthMode: errMode, obLoginErr: true, obAuthErrMsg: 'Google sign-in is not set up yet - use email.' }); return; }
+    this.googleReady().then(ok => {
+      if (!ok || !(window.google && window.google.accounts)) {
+        this.setState({ obAuthMode: errMode, obLoginErr: true, obAuthErrMsg: 'Could not load Google - use email.' });
+        return;
+      }
+      window.google.accounts.id.initialize({
+        client_id: cid,
+        callback: (resp) => {
+          fetch(base + '/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential: resp.credential }) })
+            .then(r => r.json())
+            .then(res => {
+              if (res && res.token) {
+                try { localStorage.setItem('rr_token', res.token); localStorage.setItem('rr_email', res.user.email); } catch (_) {}
+                const seed = (res.user.email || '').split('@')[0] || 'Ripper';
+                this.setState({ account: { name: seed.charAt(0).toUpperCase() + seed.slice(1), email: res.user.email, provider: 'google' }, obAuthMode: null, obLoginErr: false, obAuthErrMsg: '' });
+                if (after === 'create') { this.pushHoldings(); this.obNext(); } else { this.adoptHoldings(); this.obFinish(); }
+              } else {
+                this.setState({ obAuthMode: errMode, obLoginErr: true, obAuthErrMsg: (res && res.error) || 'Google sign-in failed.' });
+              }
+            })
+            .catch(() => this.setState({ obAuthMode: errMode, obLoginErr: true, obAuthErrMsg: 'Network error - try again.' }));
+        },
+      });
+      window.google.accounts.id.prompt((n) => {
+        try {
+          if (n && ((n.isNotDisplayed && n.isNotDisplayed()) || (n.isSkippedMoment && n.isSkippedMoment()))) {
+            this.setState({ obAuthMode: errMode, obLoginErr: true, obAuthErrMsg: 'Google prompt was blocked - use email instead.' });
+          }
+        } catch (_) {}
+      });
+    });
+  };
   authToken = () => { try { return localStorage.getItem('rr_token'); } catch (_) { return null; } };
   authHeaders = () => { const t = this.authToken(); return t ? { Authorization: 'Bearer ' + t } : {}; };
   deviceId = () => {
@@ -4284,8 +4331,8 @@ class Component extends DCLogic {
   setObName = (e) => this.setState({ obName: e.target.value });
   setObEmail = (e) => this.setState({ obEmail: e.target.value });
   setObPassword = (e) => this.setState({ obPassword: e.target.value });
-  obApple = () => { this.setState({ account: { name:'Ripper', email:'ripper@privaterelay.appleid.com', provider:'apple' } }); this.obNext(); };
-  obGoogle = () => { this.setState({ account: { name:'Ripper', email:'ripper@gmail.com', provider:'google' } }); this.obNext(); };
+  obApple = () => this.setState({ obAuthMode: 'email', obLoginErr: true, obAuthErrMsg: 'Apple sign-in is coming soon - use email or Google.' });
+  obGoogle = () => this.googleSignIn('create');
   obCanCreate(){ const s=this.state; return (s.obName||'').trim() && /.+@.+\..+/.test((s.obEmail||'').trim()) && (s.obPassword||'').length>=8; }
   obCreateEmail = () => {
     if (!this.obCanCreate()) return;
@@ -4313,8 +4360,8 @@ class Component extends DCLogic {
   obLoginEmailMode = () => this.setState({ obAuthMode: 'loginEmail', obLoginErr: false, obForgotSent: false });
   obLoginFormBack = () => this.setState({ obAuthMode: 'login', obLoginErr: false, obForgotSent: false });
   obLoginBack = () => this.setState({ obStep: 0, obAuthMode: null, obLoginErr: false });
-  obAppleLogin = () => { this.setState({ account: { name:'Ripper', email:'ripper@privaterelay.appleid.com', provider:'apple' } }); this.obFinish(); };
-  obGoogleLogin = () => { this.setState({ account: { name:'Ripper', email:'ripper@gmail.com', provider:'google' } }); this.obFinish(); };
+  obAppleLogin = () => this.setState({ obAuthMode: 'loginEmail', obLoginErr: true, obAuthErrMsg: 'Apple sign-in is coming soon - use email or Google.' });
+  obGoogleLogin = () => this.googleSignIn('login');
   obCanLogin(){ const s=this.state; return /.+@.+\..+/.test((s.obEmail||'').trim()) && (s.obPassword||'').length>=1; }
   obLoginEmail = () => {
     if (!this.obCanLogin()) { this.setState({ obLoginErr: true }); return; }
@@ -4422,6 +4469,7 @@ class Component extends DCLogic {
     this.setState({ paidOpen: true, paidKind: 'sealed', paidAmt: Math.round(p.market) });
   };
   setPaidAmt = (e) => { const v = parseFloat(e.target.value); this.setState({ paidAmt: isNaN(v) ? 0 : v }); };
+  scanBannerTap = () => { if (!this.authToken()) this.goWelcome(); };
   closePaid = () => this.setState({ paidOpen: false });
   confirmPaid = () => {
     const st = this.state;
@@ -4539,12 +4587,21 @@ class Component extends DCLogic {
         this._apiBase = base;
         this.forceUpdate();
       }
+      fetch(base + '/auth/config').then(r => r.json()).then(cfg => { this._googleClientId = cfg && cfg.googleClientId; }).catch(() => {});
       // Restore the signed-in session: profile, scan quota, synced holdings.
-      if (this.authToken()) {
+      // No token means NOT signed in — clear any stale demo account so the UI
+      // never claims a session that doesn't exist server-side.
+      if (!this.authToken()) {
+        if (this.state.account) this.setState({ account: null });
+      } else {
         fetch(base + '/me', { headers: this.authHeaders() })
           .then(r => (r.ok ? r.json() : null))
           .then(me => {
-            if (!me) return;
+            if (!me) {
+              try { localStorage.removeItem('rr_token'); localStorage.removeItem('rr_email'); } catch (_) {}
+              this.setState({ account: null, scansLeft: null });
+              return;
+            }
             const seed = (me.email || '').split('@')[0] || 'Ripper';
             const name = (this.state.account && this.state.account.name) || seed.charAt(0).toUpperCase() + seed.slice(1);
             this.setState({ account: { name, email: me.email, provider: 'email' }, scansLeft: typeof me.scansLeft === 'number' ? me.scansLeft : null });
@@ -5540,7 +5597,7 @@ class Component extends DCLogic {
       quickRemove: this.quickRemove,
       removeOpen: !!st.removeCard, removeName: st.removeCard ? st.removeCard.name : '',
       openRemoveSelected: this.openRemoveSelected, closeRemove: this.closeRemove,
-      scanMiss: st.scanMiss,
+      scanMiss: st.scanMiss, scanBannerTap: this.scanBannerTap,
       scanMissMsg: st.scanMissMsg || 'Couldn\u2019t read the card \u2014 try again closer, or add it via Search.',
       hasScansLeft: st.scansLeft != null,
       scansLeftStr: (st.scansLeft != null ? st.scansLeft : 0) + ' scans left',

@@ -14,7 +14,7 @@ import { loadLiveCatalog } from "./catalog.js";
 import { PRODUCTS } from "./mock.js";
 import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceCompsFromPg, loadPriceHistoryFromPg } from "./store/pg.js";
 import { warmPriceCache, warmHistoryCache, compMeta } from "./priceCache.js";
-import { register, login, userForToken, getHoldings, putHoldings, warmAccounts, consumeScan, scansLeftFor } from "./accounts.js";
+import { register, login, loginWithGoogle, userForToken, getHoldings, putHoldings, warmAccounts, consumeScan, scansLeftFor } from "./accounts.js";
 
 const app = express();
 app.use(cors());
@@ -100,6 +100,17 @@ app.post("/auth/login", async (req, res) => {
   const out = await login(email, password);
   return "error" in out ? res.status(401).json(out) : res.json(out);
 });
+app.post("/auth/google", async (req, res) => {
+  const { credential } = req.body ?? {};
+  if (typeof credential !== "string") return res.status(400).json({ error: "expected { credential }" });
+  const out = await loginWithGoogle(credential);
+  return "error" in out ? res.status(401).json(out) : res.json(out);
+});
+// Public client config — lets the app know which sign-in methods are live
+// without baking ids into the build.
+app.get("/auth/config", (_req, res) =>
+  res.json({ googleClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || null })
+);
 app.get("/me", (req, res) => {
   const user = userForToken(req.headers.authorization);
   if (!user) return res.status(401).json({ error: "unauthorized" });

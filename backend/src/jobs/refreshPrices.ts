@@ -76,13 +76,15 @@ export function matchCatalogCard(row: ShinyRow, cards: Card[]): Card | null {
   );
 }
 
-async function main() {
+/** Run one full refresh pass. Called by the CLI below and by the server's
+ *  nightly scheduler; safe to call with no token (skips with a log line). */
+export async function refreshAllPrices(): Promise<{ updated: number; targets: number }> {
   const targets = shinyPricingTargets();
   const cards = db.cards();
   console.log(`Poll list: ${targets.length} singles with a pricecharting_id (from ShinyExport.csv).`);
   if (!process.env.PRICECHARTING_API_TOKEN) {
     console.log("PRICECHARTING_API_TOKEN not set — nothing fetched. Add it to poll real comps.");
-    return;
+    return { updated: 0, targets: targets.length };
   }
   if (pgAvailable()) await initSchema();
 
@@ -121,6 +123,11 @@ async function main() {
   if (!pgAvailable()) {
     console.log("DATABASE_URL not set — comps held in this process only. Set it so the server can serve them.");
   }
+  return { updated, targets: targets.length };
+}
+
+async function main() {
+  await refreshAllPrices();
 }
 
 // Only run when executed directly (the mapping helpers are imported by tests).

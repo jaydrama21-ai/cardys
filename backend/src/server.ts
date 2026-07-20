@@ -15,6 +15,7 @@ import { PRODUCTS } from "./mock.js";
 import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceCompsFromPg, loadPriceHistoryFromPg } from "./store/pg.js";
 import { warmPriceCache, warmHistoryCache, compMeta } from "./priceCache.js";
 import { register, login, loginWithGoogle, userForToken, getHoldings, putHoldings, warmAccounts, consumeScan, scansLeftFor, deleteUser } from "./accounts.js";
+import { refreshAllPrices } from "./jobs/refreshPrices.js";
 
 const app = express();
 app.use(cors());
@@ -178,6 +179,7 @@ app.listen(port, async () => {
       warmHistoryCache(await loadPriceHistoryFromPg());
     }
     const setLimit = Number(process.env.CATALOG_SET_LIMIT || 0);
+    let refreshingPrices = false;
     const RETRY_MS = 10 * 60 * 1000; // failed fetch → try again in 10 min
     const REFRESH_MS = 24 * 60 * 60 * 1000; // success → refresh daily
     const refreshCatalog = async () => {
@@ -189,6 +191,15 @@ app.listen(port, async () => {
         console.log(`Live catalog loaded: ${cat.cards.length} cards across ${cat.sets.length} sets.`);
         if (pgAvailable() && (await saveCatalogToPg(cat.cards, cat.sets))) {
           console.log("Catalog persisted to Postgres.");
+        }
+        // Nightly-ish price refresh rides the catalog cycle: once after every
+        // successful load (boot + daily). No-ops with a log line until
+        // PRICECHARTING_API_TOKEN is set.
+        if (!refreshingPrices) {
+          refreshingPrices = true;
+          refreshAllPrices()
+            .catch((e) => console.error("price refresh failed:", e))
+            .finally(() => { refreshingPrices = false; });
         }
         setTimeout(refreshCatalog, REFRESH_MS);
       } catch (e) {

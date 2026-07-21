@@ -4699,6 +4699,10 @@ class Component extends DCLogic {
         const haveCard = new Set(this.db.cards.map(cardKey));
         const fresh = cards.filter(c => !haveId.has(c.id) && !haveCard.has(cardKey(c)));
         this.db.cards = this.db.cards.concat(fresh);
+        // Anything still photo-less after enrichment is a dead demo seed —
+        // drop it from search/catalog. Holdings carry their own data and
+        // are unaffected.
+        this.db.cards = this.db.cards.filter(c => c.img);
         if (Array.isArray(sets) && sets.length) {
           const haveSet = new Set((this.db.sets || []).map(s => s.name));
           this.db.sets = (this.db.sets || []).concat(sets.filter(s => !haveSet.has(s.name)));

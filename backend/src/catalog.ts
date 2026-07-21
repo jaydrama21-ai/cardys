@@ -91,6 +91,10 @@ export async function loadLiveCatalog(setLimit = 0): Promise<{ cards: Card[]; se
       }
     }
     if (!cards.length) throw new Error("API returned no cards");
+    // A card without an image is unusable in the app — drop it here.
+    const withArt = cards.filter((c) => c.img);
+    cards.length = 0;
+    cards.push(...withArt);
     const used = new Set<string>();
     const sets: CardSet[] = setsRaw.map(({ _id, ...rest }) => {
       // ptcgoCodes collide (Crown Zenith and its Galarian Gallery are both
@@ -141,6 +145,9 @@ export async function loadCatalogFromMirror(setLimit = 0): Promise<{ cards: Card
     for (const b of batch) cards.push(...b);
   }
 
+  const withArt = cards.filter((c) => c.img);
+  cards.length = 0;
+  cards.push(...withArt);
   const used = new Set<string>();
   const sets: CardSet[] = picked.map((s) => {
     // ptcgoCodes collide (e.g. Crown Zenith + its Galarian Gallery are both

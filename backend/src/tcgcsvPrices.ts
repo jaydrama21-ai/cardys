@@ -76,10 +76,19 @@ export async function applyTcgcsvPrices(cards: Card[]): Promise<{ setsMatched: n
   }
 
   // "SV08: Surging Sparks" → exact tail match against our set name first,
-  // substring as fallback.
-  const groupFor = (setName: string) =>
-    groups.find((g) => String(g.name || "").toLowerCase().split(":").pop()!.trim() === setName) ??
-    groups.find((g) => String(g.name || "").toLowerCase().includes(setName));
+  // then the "<name> Set" rename old WotC sets carry ("Base" → "Base Set"),
+  // then substring — but only when it's unambiguous, so "Base" can never
+  // land on "SV01: Scarlet & Violet Base Set".
+  const tail = (g: any) => String(g.name || "").toLowerCase().split(":").pop()!.trim();
+  const groupFor = (setName: string) => {
+    let g = groups.find((x) => tail(x) === setName);
+    if (!g) g = groups.find((x) => tail(x) === setName + " set");
+    if (!g) {
+      const cands = groups.filter((x) => String(x.name || "").toLowerCase().includes(setName));
+      if (cands.length === 1) g = cands[0];
+    }
+    return g;
+  };
 
   for (const [setKey, setCards] of bySet) {
     const g = groupFor(setKey);

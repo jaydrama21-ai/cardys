@@ -16,6 +16,7 @@ import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceC
 import { warmPriceCache, warmHistoryCache, compMeta } from "./priceCache.js";
 import { register, login, loginWithGoogle, userForToken, getHoldings, putHoldings, warmAccounts, consumeScan, scansLeftFor, deleteUser } from "./accounts.js";
 import { refreshAllPrices } from "./jobs/refreshPrices.js";
+import { applyTcgcsvPrices } from "./tcgcsvPrices.js";
 
 const app = express();
 app.use(cors());
@@ -187,6 +188,9 @@ app.listen(port, async () => {
       try {
         const cat = await loadLiveCatalog(setLimit);
         if (!cat.cards.length) throw new Error("API returned 0 cards");
+        // Free real prices: overlay TCGplayer market values (tcgcsv daily dump)
+        // before the catalog is served and persisted.
+        await applyTcgcsvPrices(cat.cards);
         loadCatalog({ cards: cat.cards, sets: cat.sets, products: PRODUCTS });
         console.log(`Live catalog loaded: ${cat.cards.length} cards across ${cat.sets.length} sets.`);
         if (pgAvailable() && (await saveCatalogToPg(cat.cards, cat.sets))) {

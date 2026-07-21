@@ -5738,7 +5738,7 @@ class Component extends DCLogic {
       ledgerRows, hasLedger: ledgerRows.length > 0,
       hasDetailMeta: !!st.detailMeta,
       detailMetaStr: st.detailMeta
-        ? st.detailMeta.source + ' \u00b7 ' + st.detailMeta.comps + ' comps' + (st.detailMeta.lastSoldHrs != null
+        ? st.detailMeta.source + (st.detailMeta.comps > 0 ? ' \u00b7 ' + st.detailMeta.comps + ' comps' : '') + (st.detailMeta.lastSoldHrs != null
             ? ' \u00b7 ' + (st.detailMeta.lastSoldHrs < 48 ? st.detailMeta.lastSoldHrs + 'h ago' : Math.round(st.detailMeta.lastSoldHrs / 24) + 'd ago')
             : '')
         : '',

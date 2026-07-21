@@ -11,14 +11,22 @@ import { tierForRaw } from "./types.js";
 import { setComp } from "./priceCache.js";
 import { pgAvailable, savePriceComp } from "./store/pg.js";
 
-const BASE = "https://tcgcsv.com/tcgplayer/3"; // category 3 = Pokemon (EN)
+// tcgcsv has moved paths before — probe both layouts. Category 3 = Pokemon (EN).
+const BASES = ["https://tcgcsv.com/tcgplayer/3", "https://tcgcsv.com/3"];
 
 async function getJson(url: string): Promise<any | null> {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(30_000) });
-    if (!r.ok) return null;
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(30_000),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; RipReport/1.0; +https://cardys.onrender.com)" },
+    });
+    if (!r.ok) {
+      console.error(`tcgcsv: ${url} responded ${r.status}`);
+      return null;
+    }
     return await r.json();
-  } catch {
+  } catch (e) {
+    console.error(`tcgcsv: ${url} failed:`, (e as Error).message);
     return null;
   }
 }
@@ -43,12 +51,22 @@ function pickMarket(subs: any[]): number | null {
 
 export async function applyTcgcsvPrices(cards: Card[]): Promise<{ setsMatched: number; cardsPriced: number }> {
   const out = { setsMatched: 0, cardsPriced: 0 };
-  const groupsRes = await getJson(`${BASE}/groups`);
-  const groups: any[] = groupsRes?.results || [];
+  let BASE = "";
+  let groups: any[] = [];
+  for (const base of BASES) {
+    const res = await getJson(`${base}/groups`);
+    const rows: any[] = res?.results || [];
+    if (rows.length) {
+      BASE = base;
+      groups = rows;
+      break;
+    }
+  }
   if (!groups.length) {
-    console.log("tcgcsv: groups unavailable — keeping seeded prices");
+    console.log("tcgcsv: groups unavailable on all known paths — keeping seeded prices");
     return out;
   }
+  console.log(`tcgcsv: ${groups.length} groups via ${BASE}`);
 
   const bySet = new Map<string, Card[]>();
   for (const c of cards) {

@@ -7,7 +7,13 @@ import assert from "node:assert";
 import { applyTcgcsvPrices } from "../src/tcgcsvPrices.js";
 import type { Card } from "../src/types.js";
 
-const GROUPS = { results: [{ groupId: 555, name: "ME04: Chaos Rising" }, { groupId: 7, name: "SV08: Surging Sparks" }] };
+const GROUPS = { results: [
+  { groupId: 555, name: "ME04: Chaos Rising" },
+  { groupId: 7, name: "SV08: Surging Sparks" },
+  { groupId: 22873, name: "SV01: Scarlet & Violet Base Set" },
+  { groupId: 604, name: "Base Set" },
+  { groupId: 23237, name: "SV: Scarlet & Violet 151" },
+] };
 const PRODUCTS = { results: [
   { productId: 901, name: "Chespin", extendedData: [{ name: "Number", value: "087/086" }] },
   { productId: 902, name: "Cobalion ex", extendedData: [{ name: "Number", value: "099/086" }] },
@@ -36,6 +42,7 @@ const cards = [
   mk("me4-99", "Cobalion ex", "Chaos Rising", "99/86"),
   mk("me4-1", "Unpriced", "Chaos Rising", "1/86"),
   mk("zz-1", "NoGroup", "Imaginary Set", "1/1"),
+  mk("base1-4", "Charizard", "Base", "4/102"), // must hit "Base Set" (tail+' set'), never SV01
 ];
 const res = await applyTcgcsvPrices(cards);
 globalThis.fetch = realFetch;
@@ -47,6 +54,7 @@ assert.equal(cards[1].raw, 43, "Cobalion: Holofoil fallback → $43");
 assert.equal(cards[1].tier, "A", "tier recomputed from real price");
 assert.equal(cards[2].raw, 1, "unpriced card keeps seed");
 assert.equal(cards[3].raw, 1, "unmatched set untouched");
+assert.equal(cards[4].raw, 1, "Base resolves to 'Base Set' (no stub data) — never mispriced via SV01");
 
 // total outage → clean no-op
 globalThis.fetch = (async () => { throw new Error("down"); }) as typeof fetch;

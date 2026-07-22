@@ -88,6 +88,20 @@ app.get("/price/history/:id", (req, res) => {
 });
 
 // ---- accounts + holdings sync ----
+// Brute-force guard: 20 auth attempts per IP per 10 minutes.
+const authHits = new Map<string, { count: number; reset: number }>();
+app.use("/auth", (req, res, next) => {
+  if (req.method !== "POST") return next();
+  const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "?").split(",")[0].trim();
+  const now = Date.now();
+  let h = authHits.get(ip);
+  if (!h || now > h.reset) h = { count: 0, reset: now + 10 * 60 * 1000 };
+  h.count += 1;
+  authHits.set(ip, h);
+  if (authHits.size > 10_000) authHits.clear(); // bounded memory
+  if (h.count > 20) return res.status(429).json({ error: "too many attempts - try again later" });
+  return next();
+});
 app.post("/auth/register", async (req, res) => {
   const { email, password } = req.body ?? {};
   if (typeof email !== "string" || typeof password !== "string")
@@ -189,9 +203,10 @@ app.listen(port, async () => {
         const cat = await loadLiveCatalog(setLimit);
         if (!cat.cards.length) throw new Error("API returned 0 cards");
         // Free real prices: overlay TCGplayer market values (tcgcsv daily dump)
-        // before the catalog is served and persisted.
-        await applyTcgcsvPrices(cat.cards);
-        loadCatalog({ cards: cat.cards, sets: cat.sets, products: PRODUCTS });
+        // before the catalog is served and persisted. Real sealed products
+        // replace the demo list whenever tcgcsv yields any.
+        const priced = await applyTcgcsvPrices(cat.cards);
+        loadCatalog({ cards: cat.cards, sets: cat.sets, products: priced.products.length ? priced.products : PRODUCTS });
         console.log(`Live catalog loaded: ${cat.cards.length} cards across ${cat.sets.length} sets.`);
         if (pgAvailable() && (await saveCatalogToPg(cat.cards, cat.sets))) {
           console.log("Catalog persisted to Postgres.");

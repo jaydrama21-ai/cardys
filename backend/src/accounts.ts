@@ -44,8 +44,9 @@ function verifyPassword(password: string, stored: string): boolean {
 
 const usersByEmail = new Map<string, User & { passwordHash: string }>();
 const usersById = new Map<string, User & { passwordHash: string }>();
-const sessions = new Map<string, string>(); // token -> userId
+const sessions = new Map<string, { userId: string; at: number }>(); // token -> session
 const holdingsByUser = new Map<string, Holding[]>();
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
 // ---- optional Postgres mirror ------------------------------------------------
 
@@ -76,8 +77,10 @@ export async function warmAccounts(): Promise<void> {
       usersById.set(u.id, u);
       if (r.scan_month) scanMonths.set(r.id, { month: r.scan_month, used: r.scans_used ?? 0 });
     }
-    const sess = await p.query(`select token, user_id from sessions`);
-    for (const r of sess.rows) sessions.set(r.token, r.user_id);
+    const sess = await p.query(`select token, user_id, created_at from sessions`);
+    for (const r of sess.rows) {
+      sessions.set(r.token, { userId: r.user_id, at: new Date(r.created_at).getTime() });
+    }
     const holds = await p.query(
       `select id, user_id, card_id, lang, grade, cost, acquired, sold_at, sold_price from holdings`
     );
@@ -170,7 +173,7 @@ export async function login(email: string, password: string): Promise<{ token: s
 
 async function issueToken(userId: string): Promise<string> {
   const token = randomBytes(32).toString("hex");
-  sessions.set(token, userId);
+  sessions.set(token, { userId, at: Date.now() });
   const p = await pgPool();
   if (p) {
     await p
@@ -184,8 +187,13 @@ async function issueToken(userId: string): Promise<string> {
 export function userForToken(authHeader: string | undefined): User | null {
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (!token) return null;
-  const userId = sessions.get(token);
-  const u = userId ? usersById.get(userId) : null;
+  const sess = sessions.get(token);
+  if (!sess) return null;
+  if (Date.now() - sess.at > SESSION_TTL_MS) {
+    sessions.delete(token); // expired — the app clears its token on the 401
+    return null;
+  }
+  const u = usersById.get(sess.userId);
   return u ? { id: u.id, email: u.email } : null;
 }
 
@@ -197,7 +205,7 @@ export async function deleteUser(userId: string): Promise<boolean> {
   usersByEmail.delete(u.email);
   holdingsByUser.delete(userId);
   scanMonths.delete(userId);
-  for (const [token, uid] of sessions) if (uid === userId) sessions.delete(token);
+  for (const [token, s] of sessions) if (s.userId === userId) sessions.delete(token);
   const p = await pgPool();
   if (p) {
     try {

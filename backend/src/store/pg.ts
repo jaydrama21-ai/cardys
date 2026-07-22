@@ -181,6 +181,32 @@ export async function savePriceHistoryPoint(cardId: string, kind: string, value:
   }
 }
 
+/** Batched daily history upsert — one statement per 500 rows. */
+export async function batchSavePriceHistory(rows: { cardId: string; kind: string; value: number }[]): Promise<void> {
+  const p = await getPool();
+  if (!p) return;
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const values: unknown[] = [];
+    const tuples = chunk.map((r, j) => {
+      values.push(r.cardId, r.kind, r.value);
+      const o = j * 3;
+      return `($${o + 1},$${o + 2}, current_date, $${o + 3})`;
+    });
+    try {
+      await p.query(
+        `insert into price_history (card_id, kind, day, value) values ${tuples.join(",")}
+         on conflict (card_id, kind, day) do update set value = excluded.value`,
+        values
+      );
+    } catch (e) {
+      console.error("price history batch failed:", e);
+      return;
+    }
+  }
+}
+
 /** Read all stored daily series, keyed "cardId kind", oldest → newest. */
 export async function loadPriceHistoryFromPg(): Promise<Map<string, number[]>> {
   const out = new Map<string, number[]>();

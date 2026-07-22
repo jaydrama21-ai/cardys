@@ -17,11 +17,15 @@ const GROUPS = { results: [
 const PRODUCTS = { results: [
   { productId: 901, name: "Chespin", extendedData: [{ name: "Number", value: "087/086" }] },
   { productId: 902, name: "Cobalion ex", extendedData: [{ name: "Number", value: "099/086" }] },
+  { productId: 950, name: "Chaos Rising Elite Trainer Box", extendedData: [] },
+  { productId: 951, name: "Chaos Rising Booster Box", extendedData: [] },
 ] };
 const PRICES = { results: [
   { productId: 901, subTypeName: "Normal", marketPrice: 5.64 },
   { productId: 901, subTypeName: "Reverse Holofoil", marketPrice: 9.1 },
   { productId: 902, subTypeName: "Holofoil", marketPrice: 42.5 },
+  { productId: 950, subTypeName: "Normal", marketPrice: 58.9 },
+  { productId: 951, subTypeName: "Normal", marketPrice: 129.0 },
 ] };
 
 const realFetch = globalThis.fetch;
@@ -49,6 +53,10 @@ globalThis.fetch = realFetch;
 
 assert.equal(res.setsMatched, 1, "one set matched");
 assert.equal(res.cardsPriced, 2, "two cards priced");
+assert.equal(res.products.length, 2, "sealed products collected");
+const etb = res.products.find(p => p.type === "Elite Trainer Box");
+assert.ok(etb && etb.market === 59 && etb.packs === 9 && etb.set === "Chaos Rising", "ETB priced with pack heuristic");
+assert.ok(res.products.find(p => p.type === "Booster Box" && p.packs === 36), "booster box typed");
 assert.equal(cards[0].raw, 6, "Chespin: Normal market 5.64 → $6, zeros-stripped number match");
 assert.equal(cards[1].raw, 43, "Cobalion: Holofoil fallback → $43");
 assert.equal(cards[1].tier, "A", "tier recomputed from real price");
@@ -60,6 +68,6 @@ assert.equal(cards[4].raw, 1, "Base resolves to 'Base Set' (no stub data) — ne
 globalThis.fetch = (async () => { throw new Error("down"); }) as typeof fetch;
 const res2 = await applyTcgcsvPrices([mk("a", "A", "B", "1/1")]);
 globalThis.fetch = realFetch;
-assert.deepEqual(res2, { setsMatched: 0, cardsPriced: 0 }, "outage → no-op");
+assert.deepEqual(res2, { setsMatched: 0, cardsPriced: 0, products: [] }, "outage → no-op");
 
 console.log("tcgcsv.test: OK — market overlay matches by set+number, recomputes tiers, fails safe");

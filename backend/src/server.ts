@@ -62,6 +62,25 @@ app.get("/search", (req, res) =>
 );
 app.get("/products/search", (req, res) => res.json(db.searchProducts(String(req.query.q ?? ""))));
 
+// Same-origin image proxy for the share-image canvas (cross-origin card art
+// would taint it). Whitelisted card-image hosts only, cached a day.
+app.get("/img-proxy", async (req, res) => {
+  const url = String(req.query.u || "");
+  if (!/^https:\/\/(images\.pokemontcg\.io|images\.scrydex\.com|tcgplayer-cdn\.tcgplayer\.com)\//.test(url)) {
+    return res.status(400).json({ error: "host not allowed" });
+  }
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!r.ok) return res.status(502).json({ error: "upstream " + r.status });
+    res.set("Content-Type", r.headers.get("content-type") || "image/jpeg");
+    res.set("Cache-Control", "public, max-age=86400");
+    res.set("Access-Control-Allow-Origin", "*");
+    return res.send(Buffer.from(await r.arrayBuffer()));
+  } catch {
+    return res.status(502).json({ error: "fetch failed" });
+  }
+});
+
 // ---- pricing ----
 app.get("/price/raw/:id", (req, res) => {
   const c = db.cardById(req.params.id);

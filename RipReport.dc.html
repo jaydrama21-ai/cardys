@@ -2112,6 +2112,11 @@
 
           <!-- plan -->
           <div style="font-size:10px; font-weight:600; letter-spacing:0.16em; color:#8B90A8; margin: 22px 2px 11px;">SUBSCRIPTION</div>
+          <div onClick="{{ openLegal }}" style="margin-top:10px; display:flex; align-items:center; gap:13px; padding:14px 16px; background:#12141D; border:1px solid #1D2130; border-radius:13px; cursor:pointer;">
+            <span style="color:#8B90A8; display:flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+            <span style="flex:1; font-size:14px; font-weight:600; color:#E8E9F0;">Terms &amp; privacy</span>
+            <span style="color:#5a5f74;">&rarr;</span>
+          </div>
           <div style="position:relative; overflow:hidden; padding:16px; background:#12141D; border:1px solid #1D2130; border-radius:14px;">
             <div style="position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,#22D3EE,#A855F7,#EC4899,#F5C542,#22D3EE); opacity:{{ holoOp }};"></div>
             <div style="display:flex; align-items:center; justify-content:space-between;">
@@ -3354,6 +3359,7 @@ class Component extends DCLogic {
       snack: null,
       paidQty: 1,
       paidTargetId: null,
+      paidZeroArm: false,
       selLang: this.deviceLang,
       selGrader: 'Raw',
       selGrade: 10,
@@ -4536,7 +4542,7 @@ class Component extends DCLogic {
   openPaidCard = () => {
     const sel = this.state.selected; if (!sel || !sel.cardId) return;
     const c = this.cardById(sel.cardId); if (!c) return;
-    this.setState({ paidOpen: true, paidKind: 'card', paidQty: 1, paidTargetId: null, paidAmt: Math.round(c.raw) });
+    this.setState({ paidOpen: true, paidKind: 'card', paidQty: 1, paidTargetId: null, paidZeroArm: false, paidAmt: Math.round(c.raw) });
   };
   openPaidSealed = () => {
     const p = this.state.product; if (!p) return;
@@ -4544,6 +4550,22 @@ class Component extends DCLogic {
   };
   setPaidAmt = (e) => { const v = parseFloat(e.target.value); this.setState({ paidAmt: isNaN(v) ? 0 : v }); };
   scanBannerTap = () => { if (!this.authToken()) this.goWelcome(); };
+  checkAlerts = () => {
+    const st = this.state;
+    const armed = (st.alerts || []).filter(a => !(st.alertsSeen || []).includes(a.id));
+    for (const a of armed) {
+      const c = this.cardById(a.cardId);
+      if (!c || !a.basePrice) continue;
+      const movedPct = ((c.raw - a.basePrice) / a.basePrice) * 100;
+      const hit = a.dir === 'down' ? movedPct <= -a.pct : movedPct >= a.pct;
+      if (hit) {
+        this.setState(s => ({ alertsSeen: [...(s.alertsSeen || []), a.id] }));
+        this.showSnack('\ud83d\udd14 ' + c.name + ' ' + (movedPct >= 0 ? '+' : '') + Math.round(movedPct) + '% since your alert \u2014 now ' + this.money(c.raw));
+        break; // one at a time; the rest fire on the next open
+      }
+    }
+  };
+  openLegal = () => { try { window.open('/legal.html', '_blank'); } catch (_) {} };
   quickEditCost = () => { const c = this.state.quickCard; this.closeQuick(); if (c) this.setState({ paidOpen: true, paidKind: 'edit', paidTargetId: c.id, paidQty: 1, paidAmt: Math.round(c.cost || 0) }); };
   openEditSold = (r) => this.setState({ paidOpen: true, paidKind: 'editSold', paidTargetId: r.id, paidQty: 1, paidAmt: Math.round(r.sale || 0) });
   paidQtyUp = () => this.setState(st => ({ paidQty: Math.min(99, (st.paidQty || 1) + 1) }));
@@ -4593,6 +4615,7 @@ class Component extends DCLogic {
     }
     const sel = st.selected; if (!sel || !sel.cardId) return this.setState({ paidOpen: false });
     const c = this.cardById(sel.cardId); if (!c) return this.setState({ paidOpen: false });
+    if (paid === 0 && !st.paidZeroArm) { this.setState({ paidZeroArm: true }); return; }
     const qty = Math.max(1, st.paidQty || 1);
     const stamp = Date.now().toString(36);
     const adds = [];
@@ -4714,6 +4737,8 @@ class Component extends DCLogic {
         this.forceUpdate();
       }
       fetch(base + '/auth/config').then(r => r.json()).then(cfg => { this._googleClientId = cfg && cfg.googleClientId; }).catch(() => {});
+      // Fire any armed price alerts against the freshly merged live prices.
+      setTimeout(() => this.checkAlerts(), 500);
       // Restore the signed-in session: profile, scan quota, synced holdings.
       // No token means NOT signed in — clear any stale demo account so the UI
       // never claims a session that doesn't exist server-side.
@@ -5414,11 +5439,18 @@ class Component extends DCLogic {
     const searchLangList = ['All','EN','JP','KR','ZH'];
     const searchGradeList = ['All','Raw','PSA 10','PSA 9'];
     const searchLang = st.searchLang === 'All' ? 'EN' : st.searchLang;
-    const searchMatches = this.db.cards
-      .filter(c => !q || (c.name+' '+c.set+' '+c.variant).toLowerCase().includes(q))
-      .filter(c => st.searchLang === 'All' || (c.langs || ['EN']).includes(st.searchLang));
-    if (q) searchMatches.sort((a, b) =>
-      (b.name.toLowerCase().startsWith(q) ? 1 : 0) - (a.name.toLowerCase().startsWith(q) ? 1 : 0));
+    const searchMemoKey = q + '|' + st.searchLang + '|' + this.db.cards.length;
+    let searchMatches;
+    if (this._searchMemo && this._searchMemo.key === searchMemoKey) {
+      searchMatches = this._searchMemo.rows;
+    } else {
+      searchMatches = this.db.cards
+        .filter(c => !q || (c.name+' '+c.set+' '+c.variant).toLowerCase().includes(q))
+        .filter(c => st.searchLang === 'All' || (c.langs || ['EN']).includes(st.searchLang));
+      if (q) searchMatches.sort((a, b) =>
+        (b.name.toLowerCase().startsWith(q) ? 1 : 0) - (a.name.toLowerCase().startsWith(q) ? 1 : 0));
+      this._searchMemo = { key: searchMemoKey, rows: searchMatches };
+    }
     const searchTotal = searchMatches.length;
     // Render a bounded page of results — mapping the full 20k-card catalog
     // into DOM rows (each pulling a full-size image) OOM-crashes mobile tabs.
@@ -5760,7 +5792,10 @@ class Component extends DCLogic {
         : 'Logs your real cost basis \u2014 market is ' + (st.paidKind === 'sealed'
             ? this.money(Math.round((st.product && st.product.market) || 0))
             : this.money(Math.round(((st.selected && st.selected.cardId && this.cardById(st.selected.cardId)) || { raw: 0 }).raw))) + ' right now.',
-      paidBtnStr: (st.paidKind === 'edit' || st.paidKind === 'editSold' ? 'Save' : 'Add') + ' \u00b7 ' + this.money(Math.round(st.paidAmt || 0)),
+      paidBtnStr: (st.paidZeroArm && Math.round(st.paidAmt || 0) === 0)
+        ? 'Tap again \u00b7 log as FREE'
+        : (st.paidKind === 'edit' || st.paidKind === 'editSold' ? 'Save' : 'Add') + ' \u00b7 ' + this.money(Math.round(st.paidAmt || 0)),
+      openLegal: this.openLegal,
       quickEditCost: this.quickEditCost,
       snack: st.snack, hasSnack: !!st.snack, snackUndo: this.snackUndo,
       paidAmt: st.paidAmt, paidStr: this.money(Math.round(st.paidAmt || 0)),

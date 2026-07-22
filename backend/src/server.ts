@@ -16,7 +16,7 @@ import { pgAvailable, initSchema, loadCatalogFromPg, saveCatalogToPg, loadPriceC
 import { warmPriceCache, warmHistoryCache, compMeta } from "./priceCache.js";
 import { register, login, loginWithGoogle, userForToken, getHoldings, putHoldings, warmAccounts, consumeScan, scansLeftFor, deleteUser } from "./accounts.js";
 import { refreshAllPrices } from "./jobs/refreshPrices.js";
-import { applyTcgcsvPrices } from "./tcgcsvPrices.js";
+import { applyTcgcsvPrices, fetchJapaneseCatalog } from "./tcgcsvPrices.js";
 
 const app = express();
 app.use(cors());
@@ -225,6 +225,13 @@ app.listen(port, async () => {
         // before the catalog is served and persisted. Real sealed products
         // replace the demo list whenever tcgcsv yields any.
         const priced = await applyTcgcsvPrices(cat.cards);
+        // Japanese exclusives (JP promos, costume Pikachus, …) built straight
+        // from tcgcsv's Japan category — names, art, numbers, prices included.
+        const jp = await fetchJapaneseCatalog();
+        const haveSetNames = new Set(cat.sets.map((s) => s.name));
+        const haveIds = new Set(cat.cards.map((c) => c.id));
+        for (const s of jp.sets) if (!haveSetNames.has(s.name)) { cat.sets.push(s); haveSetNames.add(s.name); }
+        for (const c of jp.cards) if (!haveIds.has(c.id) && haveSetNames.has(c.set)) cat.cards.push(c);
         loadCatalog({ cards: cat.cards, sets: cat.sets, products: priced.products.length ? priced.products : PRODUCTS });
         console.log(`Live catalog loaded: ${cat.cards.length} cards across ${cat.sets.length} sets.`);
         if (pgAvailable() && (await saveCatalogToPg(cat.cards, cat.sets))) {

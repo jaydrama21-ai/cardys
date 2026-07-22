@@ -2337,7 +2337,7 @@
               <span style="display:inline-flex; width:22px; height:22px; align-items:center; justify-content:center; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:{{ r.tc }}; background:{{ r.tbg }};">{{ r.tier }}</span>
               <div style="flex:1; min-width:0;">
                 <div style="font-size:14px; font-weight:600; color:#E8E9F0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.name }}</div>
-                <div style="font-size:11px; color:#8B90A8; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.set }} · {{ r.variant }}</div>
+                <div style="font-size:11px; color:#8B90A8; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ r.set }} · {{ r.variant }} · <span style="font-family:'JetBrains Mono',monospace;">{{ r.num }}</span></div>
               </div>
               <div style="text-align:right;">
                 <div style="font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:600; color:#E8E9F0; font-variant-numeric: tabular-nums;">{{ r.valStr }}</div>
@@ -5584,7 +5584,7 @@ class Component extends DCLogic {
       searchMatches = this._searchMemo.rows;
     } else {
       searchMatches = this.db.cards
-        .filter(c => !q || (c.name+' '+c.set+' '+c.variant).toLowerCase().includes(q))
+        .filter(c => !q || (c.name+' '+c.set+' '+c.variant+' '+(c.num||'')).toLowerCase().includes(q))
         .filter(c => st.searchLang === 'All' || (c.langs || ['EN']).includes(st.searchLang));
       if (st.searchSort === 'hi') searchMatches.sort((a, b) => (b.raw || 0) - (a.raw || 0));
       else if (st.searchSort === 'lo') searchMatches.sort((a, b) => (a.raw || 0) - (b.raw || 0));

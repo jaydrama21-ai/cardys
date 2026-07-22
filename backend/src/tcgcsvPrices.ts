@@ -68,6 +68,77 @@ function pickMarket(subs: any[]): number | null {
   return typeof m === "number" && m > 0 ? m : null;
 }
 
+// ---------------------------------------------------------------------------
+// Set ↔ group matching. The two catalogs name sets differently in systematic
+// ways: era prefixes ("SM - Cosmic Eclipse", "XY - Evolutions"), base-set
+// renames ("Scarlet & Violet" → "SV01: … Base Set"), promo renames ("SWSH
+// Black Star Promos" → "SWSH: Sword & Shield Promo Cards", "McDonald's
+// Collection" → "McDonald's Promos"), "&" vs "and", and accents ("Pokémon
+// GO" → "Pokemon GO"). Both sides are canonicalized; substring fallback only
+// when unambiguous.
+// ---------------------------------------------------------------------------
+
+const deaccent = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+const squash = (s: string) =>
+  deaccent(String(s)).toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\band\b/g, " ").replace(/\s+/g, " ").trim();
+const canonPromos = (s: string) =>
+  s.replace(/\bblack star promos\b/, "promos").replace(/\bpromo cards\b/, "promos").replace(/\bpromo\b$/, "promos");
+const WANT_ALIASES: Record<string, string> = {
+  "bw promos": "black white promos",
+  "dp promos": "diamond pearl promos",
+  "wizards promos": "wotc promos",
+  "expedition base set": "expedition",
+  "best of game": "best of promos",
+  "sun moon": "sm base set",
+  "mcdonald s collection 2021": "mcdonald s 25th anniversary promos",
+  "ex trainer kit latias": "ex trainer kit 1 latias latios",
+  "ex trainer kit latios": "ex trainer kit 1 latias latios",
+  "ex trainer kit 2 plusle": "ex trainer kit 2 plusle minun",
+  "ex trainer kit 2 minun": "ex trainer kit 2 plusle minun",
+};
+
+function groupForms(name: string): string[] {
+  const parts = String(name).split(/\s-\s|:/);
+  const whole = squash(name);
+  const forms = new Set<string>([
+    squash(parts[parts.length - 1]),
+    parts.length > 1 ? squash(parts.slice(1).join(" ")) : "",
+    whole,
+  ]);
+  for (const f of [...forms]) if (f) forms.add(canonPromos(f));
+  // "SWSH: Sword & Shield Promo Cards" also answers to "swsh promos"
+  if (parts.length > 1 && canonPromos(whole).endsWith("promos")) {
+    forms.add(squash(parts[0]) + " promos");
+  }
+  forms.delete("");
+  return [...forms];
+}
+
+function wantForms(setName: string): string[] {
+  const w = squash(setName);
+  const c = canonPromos(w);
+  const out = new Set<string>([
+    w, c, w + " set", w + " base set",
+    w.replace(/^pokemon /, ""), c.replace(/^pokemon /, ""),
+    w.replace(/^hs /, ""),
+    w.replace(/\bcollection\b/, "promos"),
+  ]);
+  for (const f of [...out]) if (WANT_ALIASES[f]) out.add(WANT_ALIASES[f]);
+  out.delete("");
+  return [...out];
+}
+
+export function findGroup(groups: any[], setName: string): any | undefined {
+  const wants = new Set(wantForms(setName));
+  let g = groups.find((x) => groupForms(String(x.name || "")).some((f) => wants.has(f)));
+  if (!g) {
+    const w = squash(setName);
+    const cands = groups.filter((x) => squash(String(x.name || "")).includes(w));
+    if (cands.length === 1) g = cands[0];
+  }
+  return g;
+}
+
 export async function applyTcgcsvPrices(cards: Card[]): Promise<{ setsMatched: number; cardsPriced: number; products: Product[] }> {
   const out: { setsMatched: number; cardsPriced: number; products: Product[] } = { setsMatched: 0, cardsPriced: 0, products: [] };
   const histRows: { cardId: string; kind: string; value: number }[] = [];
@@ -95,31 +166,7 @@ export async function applyTcgcsvPrices(cards: Card[]): Promise<{ setsMatched: n
     bySet.get(k)!.push(c);
   }
 
-  // Group names come in several shapes — "SV08: Surging Sparks", old WotC
-  // renames ("Base" → "Base Set"), and nested colons ("SWSH: Crown Zenith:
-  // Galarian Gallery" for our set "Crown Zenith Galarian Gallery"). Compare
-  // punctuation-collapsed forms of the tail, the name after the first colon,
-  // and the whole name; substring only when unambiguous.
-  const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const gForms = (g: any) => {
-    const name = String(g.name || "");
-    const ci = name.indexOf(":");
-    return [
-      squash(name.split(":").pop()!),
-      ci >= 0 ? squash(name.slice(ci + 1)) : "",
-      squash(name),
-    ];
-  };
-  const groupFor = (setName: string) => {
-    const want = squash(setName);
-    const wantSet = want + " set";
-    let g = groups.find((x) => gForms(x).some((f) => f === want || f === wantSet));
-    if (!g) {
-      const cands = groups.filter((x) => squash(String(x.name || "")).includes(want));
-      if (cands.length === 1) g = cands[0];
-    }
-    return g;
-  };
+  const groupFor = (setName: string) => findGroup(groups, setName);
 
   for (const [setKey, setCards] of bySet) {
     const g = groupFor(setKey);

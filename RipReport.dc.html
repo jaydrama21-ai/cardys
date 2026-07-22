@@ -1338,6 +1338,9 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
             </span>
             </sc-if>
+            <span onClick="{{ sharePull }}" title="Share" style="cursor:pointer; flex-shrink:0; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:#12141D; border:1px solid #1D2130; color:#8B90A8;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+            </span>
             <span onClick="{{ openAlertSelected }}" title="Price alert" style="cursor:pointer; flex-shrink:0; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; background:{{ selAlert.btnBg }}; border:1px solid {{ selAlert.btnBorder }};">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{ selAlert.bell }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
             </span>
@@ -2117,6 +2120,11 @@
             <span style="flex:1; font-size:14px; font-weight:600; color:#E8E9F0;">Terms &amp; privacy</span>
             <span style="color:#5a5f74;">&rarr;</span>
           </div>
+          <div onClick="{{ importCsv }}" style="margin-top:10px; display:flex; align-items:center; gap:13px; padding:14px 16px; background:#12141D; border:1px solid #1D2130; border-radius:13px; cursor:pointer;">
+            <span style="color:#57D9A3; display:flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></span>
+            <span style="flex:1; font-size:14px; font-weight:600; color:#E8E9F0;">Import collection (CSV)</span>
+            <span style="color:#5a5f74;">&rarr;</span>
+          </div>
           <div style="position:relative; overflow:hidden; padding:16px; background:#12141D; border:1px solid #1D2130; border-radius:14px;">
             <div style="position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg,#22D3EE,#A855F7,#EC4899,#F5C542,#22D3EE); opacity:{{ holoOp }};"></div>
             <div style="display:flex; align-items:center; justify-content:space-between;">
@@ -2316,6 +2324,10 @@
           <div style="font-size:10px; font-weight:600; letter-spacing:0.16em; color:#8B90A8; margin: 16px 2px 9px;">GRADE COMP</div>
           <div style="display:flex; gap:7px; flex-wrap:wrap;">
             <sc-for list="{{ searchGradeChips }}" as="c" hint-placeholder-count="4"><div onClick="{{ c.pick }}" style="padding:8px 14px; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer; border:{{ c.border }}; background:{{ c.bg }}; color:{{ c.color }};">{{ c.label }}</div></sc-for>
+          </div>
+          <div style="font-size:10px; font-weight:600; letter-spacing:0.16em; color:#8B90A8; margin: 16px 2px 9px;">SORT</div>
+          <div style="display:flex; gap:7px; flex-wrap:wrap;">
+            <sc-for list="{{ searchSortChips }}" as="c" hint-placeholder-count="3"><div onClick="{{ c.pick }}" style="padding:8px 14px; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer; border:{{ c.border }}; background:{{ c.bg }}; color:{{ c.color }};">{{ c.label }}</div></sc-for>
           </div>
 
           <div style="font-size:10px; font-weight:600; letter-spacing:0.16em; color:#8B90A8; margin: 20px 2px 10px;">{{ searchCount }} RESULTS</div>
@@ -3372,6 +3384,7 @@ class Component extends DCLogic {
       paidKind: 'card',
       searchQuery: '',
       searchTab: 'singles',
+      searchSort: 'match',
       searchLang: 'All',
       searchGrade: 'All',
       gsCardId: null,
@@ -4515,6 +4528,7 @@ class Component extends DCLogic {
   clearSearch = () => { this.setState({ searchQuery: '' }); const el = document.querySelector('[data-search-input]'); if (el) el.focus(); };
   pickSearchLang = (l) => this.setState({ searchLang: l });
   pickSearchGrade = (g) => this.setState({ searchGrade: g });
+  pickSearchSort = (s) => this.setState({ searchSort: s });
   pickSearchTab = (t) => this.setState({ searchTab: t });
 
   // ---- session history ----
@@ -4566,6 +4580,118 @@ class Component extends DCLogic {
     }
   };
   openLegal = () => { try { window.open('/legal.html', '_blank'); } catch (_) {} };
+  importCsv = () => {
+    try {
+      const inp = document.createElement('input');
+      inp.type = 'file';
+      inp.accept = '.csv,text/csv';
+      inp.onchange = () => {
+        const f = inp.files && inp.files[0];
+        if (!f) return;
+        const rd = new FileReader();
+        rd.onload = () => this.ingestCsv(String(rd.result || ''));
+        rd.readAsText(f);
+      };
+      inp.click();
+    } catch (_) {}
+  };
+  ingestCsv = (text) => {
+    const parse = (line) => {
+      const out = []; let cur = ''; let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQ) { if (ch === '"' && line[i+1] === '"') { cur += '"'; i++; } else if (ch === '"') inQ = false; else cur += ch; }
+        else if (ch === '"') inQ = true;
+        else if (ch === ',') { out.push(cur); cur = ''; }
+        else cur += ch;
+      }
+      out.push(cur); return out;
+    };
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) { this.showSnack('Could not read that CSV.'); return; }
+    const head = parse(lines[0]).map(h => h.trim().toLowerCase());
+    const col = (names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
+    const iName = col(['product_name','name','card name','card']);
+    const iSet = col(['set_name','set']);
+    const iQty = col(['quantity','qty','count']);
+    const iPaid = col(['paid_per_unit','paid','cost','purchase price']);
+    const iRarity = col(['rarity']);
+    if (iName < 0) { this.showSnack('CSV needs a name column.'); return; }
+    const adds = []; let missed = 0;
+    for (const line of lines.slice(1)) {
+      const f = parse(line);
+      const name = (f[iName] || '').trim(); if (!name) continue;
+      if (iRarity >= 0 && (f[iRarity] || '').trim().toLowerCase() === 'sealed') { missed++; continue; }
+      const set = iSet >= 0 ? (f[iSet] || '').trim().toLowerCase() : '';
+      const c = this.db.cards.find(x => x.name.toLowerCase() === name.toLowerCase() && (!set || x.set.toLowerCase() === set))
+        || this.db.cards.find(x => x.name.toLowerCase() === name.toLowerCase());
+      if (!c) { missed++; continue; }
+      const qty = Math.min(50, Math.max(1, Math.round(parseFloat(iQty >= 0 ? f[iQty] : '1')) || 1));
+      const paid = iPaid >= 0 ? Math.max(0, Math.round(parseFloat(f[iPaid]) || 0)) : 0;
+      const stamp = Date.now().toString(36) + '-' + adds.length;
+      for (let i = 0; i < qty; i++) {
+        adds.push({ cardId:c.id, name:c.name, set:c.set, variant:c.variant, tier:c.tier, value:c.raw, chase:!!c.chase, img:c.img, id:'imp-'+c.id+'-'+stamp+'-'+i, lang:'EN', grade:null, cost:paid });
+      }
+    }
+    if (!adds.length) { this.showSnack('No matching cards found in that CSV.'); return; }
+    const ids = adds.map(a => a.id);
+    this.setState(s => ({ pulled: [...s.pulled, ...adds] }));
+    this.showSnack('Imported ' + adds.length + ' cards' + (missed ? ' (' + missed + ' rows skipped)' : ''), () =>
+      this.setState(s => ({ pulled: (s.pulled || []).filter(p => !ids.includes(p.id)) })));
+  };
+  sharePull = () => {
+    const sel = this.state.selected; if (!sel) return;
+    const c = (sel.cardId && this.cardById(sel.cardId)) || null;
+    const img = (c && c.img) || sel.img || null;
+    const price = c ? c.raw : (sel.value || 0);
+    const W = 1080, H = 1350;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const finish = (art) => {
+      ctx.fillStyle = '#0B0D13'; ctx.fillRect(0, 0, W, H);
+      const grad = ctx.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0, '#22D3EE'); grad.addColorStop(0.5, '#A855F7'); grad.addColorStop(1, '#F5C542');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, W, 14);
+      if (art) {
+        const aw = 620, ah = Math.min(900, Math.round(aw * ((art.height / art.width) || 1.39)));
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 60; ctx.shadowOffsetY = 24;
+        ctx.drawImage(art, (W - aw) / 2, 110, aw, ah);
+        ctx.restore();
+      }
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#E8E9F0'; ctx.font = '700 62px -apple-system, "Segoe UI", sans-serif';
+      ctx.fillText(sel.name || '', W / 2, 1115, W - 120);
+      ctx.fillStyle = '#8B90A8'; ctx.font = '500 34px -apple-system, "Segoe UI", sans-serif';
+      ctx.fillText((c && c.set) || sel.set || '', W / 2, 1172, W - 120);
+      ctx.fillStyle = '#57D9A3'; ctx.font = '700 70px monospace';
+      ctx.fillText(this.money(price), W / 2, 1268);
+      ctx.fillStyle = '#5a5f74'; ctx.font = '600 27px -apple-system, "Segoe UI", sans-serif';
+      ctx.fillText('tracked with RipReport', W / 2, 1322);
+      try {
+        canvas.toBlob((blob) => {
+          if (!blob) { this.showSnack('Could not build the share image.'); return; }
+          const file = new File([blob], 'ripreport-pull.png', { type: 'image/png' });
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            navigator.share({ files: [file], title: sel.name }).catch(() => {});
+          } else {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'ripreport-pull.png';
+            a.click();
+          }
+        }, 'image/png');
+      } catch (_) { this.showSnack('Could not build the share image.'); }
+    };
+    if (img && this._apiBase) {
+      const im = new Image();
+      im.crossOrigin = 'anonymous';
+      im.onload = () => finish(im);
+      im.onerror = () => finish(null);
+      im.src = this._apiBase + '/img-proxy?u=' + encodeURIComponent(img);
+    } else finish(null);
+  };
   quickEditCost = () => { const c = this.state.quickCard; this.closeQuick(); if (c) this.setState({ paidOpen: true, paidKind: 'edit', paidTargetId: c.id, paidQty: 1, paidAmt: Math.round(c.cost || 0) }); };
   openEditSold = (r) => this.setState({ paidOpen: true, paidKind: 'editSold', paidTargetId: r.id, paidQty: 1, paidAmt: Math.round(r.sale || 0) });
   paidQtyUp = () => this.setState(st => ({ paidQty: Math.min(99, (st.paidQty || 1) + 1) }));
@@ -4691,7 +4817,19 @@ class Component extends DCLogic {
     }
     this.syncCamera();
   }
-  componentDidMount(){ this.syncCamera(); this.connectBackend(); }
+  componentDidMount(){
+    this.syncCamera();
+    this.connectBackend();
+    // Refresh catalog + prices when the app comes back after >10 min away.
+    try {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this._apiBase &&
+            (!this._lastSync || Date.now() - this._lastSync > 10 * 60 * 1000)) {
+          this.connectBackend();
+        }
+      });
+    } catch (_) {}
+  }
 
   // Live data hookup. Set window.__RIPREPORT_API__ = 'https://your-backend' to
   // replace the sample catalog with the real one (RipDataService). Fully
@@ -4734,6 +4872,7 @@ class Component extends DCLogic {
         this._byId = {}; this.db.cards.forEach(c => { this._byId[c.id] = c; });
         this.catalog = this.db.cards;
         this._apiBase = base;
+        this._lastSync = Date.now();
         this.forceUpdate();
       }
       fetch(base + '/auth/config').then(r => r.json()).then(cfg => { this._googleClientId = cfg && cfg.googleClientId; }).catch(() => {});
@@ -5439,7 +5578,7 @@ class Component extends DCLogic {
     const searchLangList = ['All','EN','JP','KR','ZH'];
     const searchGradeList = ['All','Raw','PSA 10','PSA 9'];
     const searchLang = st.searchLang === 'All' ? 'EN' : st.searchLang;
-    const searchMemoKey = q + '|' + st.searchLang + '|' + this.db.cards.length;
+    const searchMemoKey = q + '|' + st.searchLang + '|' + (st.searchSort || 'match') + '|' + this.db.cards.length;
     let searchMatches;
     if (this._searchMemo && this._searchMemo.key === searchMemoKey) {
       searchMatches = this._searchMemo.rows;
@@ -5447,7 +5586,9 @@ class Component extends DCLogic {
       searchMatches = this.db.cards
         .filter(c => !q || (c.name+' '+c.set+' '+c.variant).toLowerCase().includes(q))
         .filter(c => st.searchLang === 'All' || (c.langs || ['EN']).includes(st.searchLang));
-      if (q) searchMatches.sort((a, b) =>
+      if (st.searchSort === 'hi') searchMatches.sort((a, b) => (b.raw || 0) - (a.raw || 0));
+      else if (st.searchSort === 'lo') searchMatches.sort((a, b) => (a.raw || 0) - (b.raw || 0));
+      else if (q) searchMatches.sort((a, b) =>
         (b.name.toLowerCase().startsWith(q) ? 1 : 0) - (a.name.toLowerCase().startsWith(q) ? 1 : 0));
       this._searchMemo = { key: searchMemoKey, rows: searchMatches };
     }
@@ -5467,6 +5608,9 @@ class Component extends DCLogic {
       });
     const searchLangChips = searchLangList.map(l => ({ label:l, ...chipStyle(l===st.searchLang), pick:()=>this.pickSearchLang(l) }));
     const searchGradeChips = searchGradeList.map(g => ({ label:g, ...chipStyle(g===st.searchGrade), pick:()=>this.pickSearchGrade(g) }));
+    const searchSortChips = [
+      { key:'match', label:'Best match' }, { key:'hi', label:'Price \u2193' }, { key:'lo', label:'Price \u2191' },
+    ].map(s => ({ label:s.label, ...chipStyle(s.key===(st.searchSort||'match')), pick:()=>this.pickSearchSort(s.key) }));
     const sealedTab = st.searchTab === 'sealed';
     const productTypeColor = { 'Elite Trainer Box':'#22D3EE', 'Booster Box':'#F5C542', 'Booster Bundle':'#57D9A3', 'Premium Collection':'#A855F7' };
     const searchProducts = this.db.products
@@ -5795,7 +5939,7 @@ class Component extends DCLogic {
       paidBtnStr: (st.paidZeroArm && Math.round(st.paidAmt || 0) === 0)
         ? 'Tap again \u00b7 log as FREE'
         : (st.paidKind === 'edit' || st.paidKind === 'editSold' ? 'Save' : 'Add') + ' \u00b7 ' + this.money(Math.round(st.paidAmt || 0)),
-      openLegal: this.openLegal,
+      openLegal: this.openLegal, importCsv: this.importCsv, sharePull: this.sharePull,
       quickEditCost: this.quickEditCost,
       snack: st.snack, hasSnack: !!st.snack, snackUndo: this.snackUndo,
       paidAmt: st.paidAmt, paidStr: this.money(Math.round(st.paidAmt || 0)),
@@ -6004,7 +6148,7 @@ class Component extends DCLogic {
       hasSearchQuery: st.searchQuery.length>0,
       searchResults, searchCount: searchTotal,
       searchNoResults: q.length>0 && searchTotal===0,
-      searchLangChips, searchGradeChips,
+      searchLangChips, searchGradeChips, searchSortChips,
       searchTabSingles, searchTabSealed, sealedTab, singlesTab: !sealedTab,
       searchProducts, searchProductCount: searchProducts.length,
       searchNoProducts: sealedTab && searchProducts.length===0,

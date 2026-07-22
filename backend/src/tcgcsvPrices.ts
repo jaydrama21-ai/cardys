@@ -32,6 +32,9 @@ const typeFor = (name: string) =>
 
 // tcgcsv has moved paths before — probe both layouts. Category 3 = Pokemon (EN).
 const BASES = ["https://tcgcsv.com/tcgplayer/3", "https://tcgcsv.com/3"];
+// Category 85 = Pokemon Japan — the only free source for JP exclusives
+// (poncho/costume Pikachus, JP promos), complete with images and prices.
+const JP_BASES = ["https://tcgcsv.com/tcgplayer/85", "https://tcgcsv.com/85"];
 
 async function getJson(url: string): Promise<any | null> {
   try {
@@ -137,6 +140,70 @@ export function findGroup(groups: any[], setName: string): any | undefined {
     if (cands.length === 1) g = cands[0];
   }
   return g;
+}
+
+/** Build catalog cards for Japanese sets straight from tcgcsv — name, image,
+ *  collector number, and market price all come from the product feed. Only
+ *  number-bearing products (real cards) are included. Fails safe to []. */
+export async function fetchJapaneseCatalog(): Promise<{ cards: Card[]; sets: { code: string; name: string; released: string }[] }> {
+  const out: { cards: Card[]; sets: { code: string; name: string; released: string }[] } = { cards: [], sets: [] };
+  if (process.env.INCLUDE_JP === "0") return out;
+  let BASE = "";
+  let groups: any[] = [];
+  for (const base of JP_BASES) {
+    const res = await getJson(`${base}/groups`);
+    const rows: any[] = res?.results || [];
+    if (rows.length) { BASE = base; groups = rows; break; }
+  }
+  if (!groups.length) {
+    console.log("tcgcsv-jp: groups unavailable — skipping Japanese catalog");
+    return out;
+  }
+  for (let i = 0; i < groups.length; i += 8) {
+    const batch = groups.slice(i, i + 8);
+    const results = await Promise.all(batch.map(async (g) => {
+      const [prodRes, priceRes] = await Promise.all([
+        getJson(`${BASE}/${g.groupId}/products`),
+        getJson(`${BASE}/${g.groupId}/prices`),
+      ]);
+      return { g, prods: prodRes?.results || [], prices: priceRes?.results || [] };
+    }));
+    for (const { g, prods, prices } of results) {
+      if (!prods.length) continue;
+      const priceByProduct = new Map<number, any[]>();
+      for (const pr of prices) {
+        if (!priceByProduct.has(pr.productId)) priceByProduct.set(pr.productId, []);
+        priceByProduct.get(pr.productId)!.push(pr);
+      }
+      const setName = String(g.name || "").trim();
+      let added = 0;
+      for (const p of prods) {
+        const num = (p.extendedData || []).find((e: any) => e.name === "Number")?.value;
+        if (!num || !p.imageUrl) continue; // cards only, and only with art
+        const market = pickMarket(priceByProduct.get(p.productId) || []);
+        const raw = market !== null ? Math.max(1, Math.round(market)) : 1;
+        const rarity = (p.extendedData || []).find((e: any) => e.name === "Rarity")?.value || "Promo";
+        out.cards.push({
+          id: "jp-" + p.productId,
+          name: String(p.name).replace(/\s*\(.*\)\s*$/, "").trim() || String(p.name),
+          set: setName,
+          num: String(num),
+          rarity: String(rarity),
+          variant: String(rarity),
+          tier: tierForRaw(raw),
+          chase: raw >= 100,
+          langs: ["JP"],
+          raw,
+          chg: 0,
+          img: String(p.imageUrl),
+        });
+        added++;
+      }
+      if (added) out.sets.push({ code: "jp-" + g.groupId, name: setName, released: String(g.publishedOn || "").slice(0, 10) });
+    }
+  }
+  console.log(`tcgcsv-jp: built ${out.cards.length} Japanese cards across ${out.sets.length} sets.`);
+  return out;
 }
 
 export async function applyTcgcsvPrices(cards: Card[]): Promise<{ setsMatched: number; cardsPriced: number; products: Product[] }> {

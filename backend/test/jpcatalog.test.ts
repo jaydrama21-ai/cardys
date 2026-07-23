@@ -31,7 +31,7 @@ assert.equal(jp.sets.length, 1);
 assert.equal(jp.cards.length, 1, "only number+art products become cards");
 const pika = jp.cards[0];
 assert.equal(pika.id, "jp-71");
-assert.equal(pika.name, "Pikachu", "parenthetical stripped");
+assert.equal(pika.name, "Pikachu · Poncho o Kita Pikachu", "full identity kept, parens folded");
 assert.equal(pika.num, "208/SM-P");
 assert.deepEqual(pika.langs, ["JP"]);
 assert.equal(pika.raw, 450);

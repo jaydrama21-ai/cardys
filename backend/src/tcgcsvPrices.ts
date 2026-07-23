@@ -183,9 +183,12 @@ export async function fetchJapaneseCatalog(): Promise<{ cards: Card[]; sets: { c
         const market = pickMarket(priceByProduct.get(p.productId) || []);
         const raw = market !== null ? Math.max(1, Math.round(market)) : 1;
         const rarity = (p.extendedData || []).find((e: any) => e.name === "Rarity")?.value || "Promo";
+        // Keep the FULL product name — for JP promos the identity lives in the
+        // parenthetical ("Pikachu (Poncho o Kita Pikachu - Rayquaza)"), and
+        // stripping it collapsed every costume variant into plain "Pikachu".
         out.cards.push({
           id: "jp-" + p.productId,
-          name: String(p.name).replace(/\s*\(.*\)\s*$/, "").trim() || String(p.name),
+          name: String(p.name).replace(/\s*\(\s*/g, " · ").replace(/\s*\)\s*/g, " ").replace(/\s+/g, " ").trim(),
           set: setName,
           num: String(num),
           rarity: String(rarity),

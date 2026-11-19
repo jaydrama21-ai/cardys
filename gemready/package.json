@@ -1,0 +1,24 @@
+{
+  "name": "gemready",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GemReady — condition estimates, centering and grading outcomes for trading cards.",
+  "scripts": {
+    "sync": "node scripts/sync-shared.mjs",
+    "check": "node scripts/sync-shared.mjs --check",
+    "install:all": "cd backend && npm install",
+    "start": "npm run sync && cd backend && npm start",
+    "dev": "npm run sync && cd backend && npm run dev",
+    "test": "npm run check && cd shared && node --test test/*.test.js && cd ../backend && npm test && cd ../model && python3 -m unittest test_train.py",
+    "e2e": "node scripts/e2e.mjs",
+    "icons": "python3 scripts/make_icons.py",
+    "cap:sync": "npm run sync && npx cap sync",
+    "cap:ios": "npm run sync && npx cap add ios && npx cap sync ios && npx cap open ios"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
+  }
+}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GemReady</title>
+<meta name="description" content="Is it gem ready? Condition estimates, centering and grading outcomes for trading cards.">
+<meta name="theme-color" content="#0D0F14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GemReady">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="app.css">
+<script>
+  // Capacitor / native builds point at the hosted API; the web build is same-origin.
+  window.GEMREADY_API = window.GEMREADY_API || (location.protocol === "capacitor:" || location.hostname === "localhost" && location.port === "" ? "https://api.gemready.app" : "");
+</script>
+</head>
+<body>
+<main id="app" aria-live="polite"><div class="screen pad"><p class="muted">Loading…</p></div></main>
+<noscript><p style="padding:24px">GemReady needs JavaScript to run.</p></noscript>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

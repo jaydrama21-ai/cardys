@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "version": null,
+  "note": "Odds stay off until train.py passes the launch gate on real slab results. Do not hand-edit enabled.",
+  "graders": {}
+}

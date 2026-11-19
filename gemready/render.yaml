@@ -1,0 +1,42 @@
+# Render blueprint for GemReady (web app + API on one origin).
+# In Render: New → Blueprint → pick this repo, set "Blueprint path" to
+# gemready/render.yaml. Fill the secret env vars in the dashboard.
+services:
+  - type: web
+    name: gemready
+    runtime: node
+    rootDir: gemready
+    buildCommand: npm run sync && cd backend && npm ci
+    startCommand: cd backend && npm start
+    healthCheckPath: /api/health
+    plan: starter            # free plans sleep; alerts and first loads suffer
+    disk:
+      name: training
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: DATA_MODE
+        value: live
+      - key: CATALOG_SET_LIMIT
+        value: "0"
+      - key: TRAINING_DIR
+        value: /var/data/training
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gemready-db
+          property: connectionString
+      - key: PRICECHARTING_API_TOKEN
+        sync: false
+      - key: PSA_API_TOKEN
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: ADMIN_TOKEN
+        generateValue: true
+databases:
+  - name: gemready-db
+    plan: basic-256mb

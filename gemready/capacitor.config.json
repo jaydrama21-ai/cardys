@@ -1,0 +1,12 @@
+{
+  "appId": "app.gemready.ios",
+  "appName": "GemReady",
+  "webDir": "web",
+  "ios": {
+    "contentInset": "never",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "server": {
+    "iosScheme": "capacitor"
+  }
+}

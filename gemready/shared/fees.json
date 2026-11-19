@@ -1,0 +1,58 @@
+{
+  "_readme": "Grader and marketplace fees. REFRESH MONTHLY: graders change prices and pause tiers often. Every tier carries its source. price=null means the grader does not publish one we could verify; the app shows 'Check grader' instead of guessing. maxValue=null means no published per-card value limit we could verify; the app still offers the tier but marks it 'check value limit'.",
+  "verifiedAt": "2026-11-19",
+  "ebay": {
+    "source": "https://www.ebay.com/help/selling-fees/selling/selling-fees?id=4822",
+    "verifiedAt": "2026-11-19",
+    "category": "Collectible Card Games / Non-Sport Trading Cards, no eBay Store",
+    "rateUpTo": 0.1325,
+    "threshold": 7500,
+    "rateAbove": 0.0235,
+    "perOrderSmall": 0.30,
+    "perOrderLarge": 0.40,
+    "smallOrderMax": 10
+  },
+  "graders": {
+    "PSA": {
+      "returnShipping": { "amount": null, "estimate": true, "note": "PSA quotes return shipping at checkout." },
+      "tiers": [
+        { "id": "psa-value-plus", "name": "Value Plus", "price": 49.99, "maxValue": 500, "days": 45, "status": "paused", "source": "https://www.psacard.com/info/submission-updates", "note": "Price from PSA's Feb 10, 2026 update. Reported paused in 2026; recheck before enabling." },
+        { "id": "psa-value-max", "name": "Value Max", "price": 64.99, "maxValue": 1000, "days": 35, "status": "paused", "source": "https://www.psacard.com/info/submission-updates", "note": "Price from PSA's Feb 10, 2026 update. Reported paused in 2026; recheck before enabling." },
+        { "id": "psa-regular", "name": "Regular", "price": 79.99, "maxValue": 1500, "days": 25, "status": "open", "source": "https://www.psacard.com/info/submission-updates" },
+        { "id": "psa-express", "name": "Express", "price": 199.00, "maxValue": 2500, "days": 25, "status": "open", "source": "https://cardgrade.io/blog/psa-grading-cost-breakdown", "note": "Third-party report (verified Sep 21, 2026). Confirm on psacard.com." },
+        { "id": "psa-super-express", "name": "Super Express", "price": 349.00, "maxValue": 5000, "days": 12, "status": "open", "source": "https://cardgrade.io/blog/psa-grading-cost-breakdown", "note": "Third-party report (verified Sep 21, 2026). Confirm on psacard.com." },
+        { "id": "psa-walk-through", "name": "Walk-Through", "price": null, "maxValue": null, "days": 5, "status": "open", "source": "https://www.psacard.com/services", "note": "Price depends on declared value. Not verified." }
+      ]
+    },
+    "BGS": {
+      "returnShipping": { "amount": null, "estimate": true, "note": "Beckett hasn't published a return-shipping table we track." },
+      "tiers": [
+        { "id": "bgs-base-sub", "name": "Base with Subgrades", "price": 17.95, "maxValue": null, "days": 75, "status": "open", "source": "https://cardgrade.io/blog/bgs-grading-cost-breakdown" },
+        { "id": "bgs-standard", "name": "Standard", "price": 34.95, "maxValue": null, "days": 45, "status": "open", "source": "https://cardgrade.io/blog/bgs-grading-cost-breakdown" },
+        { "id": "bgs-express", "name": "Express", "price": 79.95, "maxValue": null, "days": 15, "status": "open", "source": "https://cardgrade.io/blog/bgs-grading-cost-breakdown" },
+        { "id": "bgs-priority", "name": "Priority", "price": null, "maxValue": null, "days": 5, "status": "paused", "source": "https://cardgrade.io/blog/bgs-grading-cost-breakdown", "note": "Not on Beckett's temporary form as of Sep 21, 2026." }
+      ]
+    },
+    "CGC": {
+      "returnShipping": { "amount": null, "estimate": true, "note": "CGC quotes return shipping at checkout." },
+      "tiers": [
+        { "id": "cgc-bulk", "name": "Bulk", "price": 17.00, "maxValue": null, "days": 150, "min": 25, "status": "open", "source": "https://cardgrade.io/cgc-card-grading-cost" },
+        { "id": "cgc-economy", "name": "Economy", "price": 20.00, "maxValue": null, "days": 90, "status": "open", "source": "https://cardgrade.io/cgc-card-grading-cost" },
+        { "id": "cgc-standard", "name": "Standard", "price": 55.00, "maxValue": null, "days": 10, "status": "open", "source": "https://cardgrade.io/cgc-card-grading-cost" },
+        { "id": "cgc-express", "name": "Express", "price": 100.00, "maxValue": null, "days": 5, "status": "open", "source": "https://cardgrade.io/cgc-card-grading-cost" },
+        { "id": "cgc-walkthrough", "name": "WalkThrough", "price": 300.00, "maxValue": 100000, "days": 2, "status": "open", "source": "https://cardgrade.io/cgc-card-grading-cost" }
+      ]
+    },
+    "TAG": {
+      "returnShipping": { "amount": null, "estimate": true, "note": "TAG sets return shipping at checkout." },
+      "tiers": [
+        { "id": "tag-value", "name": "Value", "price": 29.95, "maxValue": 250, "days": 90, "min": 10, "status": "paused", "source": "https://cardgrade.io/tag-card-grading-cost", "note": "Opens and closes with limited space." },
+        { "id": "tag-base", "name": "Base", "price": 39.95, "maxValue": 500, "days": 60, "min": 5, "status": "open", "source": "https://help.taggrading.com/en/articles/10692075-what-are-tag-s-available-grading-services" },
+        { "id": "tag-standard", "name": "Standard", "price": 59.95, "maxValue": 1000, "days": 45, "status": "open", "source": "https://help.taggrading.com/en/articles/10692075-what-are-tag-s-available-grading-services" },
+        { "id": "tag-priority", "name": "Priority", "price": 79.95, "maxValue": 1500, "days": 30, "status": "open", "source": "https://help.taggrading.com/en/articles/10692075-what-are-tag-s-available-grading-services" },
+        { "id": "tag-express", "name": "Express", "price": 149.95, "maxValue": 2500, "days": 10, "status": "open", "source": "https://help.taggrading.com/en/articles/10692075-what-are-tag-s-available-grading-services" },
+        { "id": "tag-premier", "name": "Premier", "price": 299.95, "maxValue": 5000, "days": 4, "status": "open", "source": "https://help.taggrading.com/en/articles/10692075-what-are-tag-s-available-grading-services", "note": "$10,000 coverage option available." }
+      ]
+    }
+  }
+}

@@ -1,0 +1,306 @@
+// Copied from backend/src/tcgcsvPrices.ts (RipReport) — raw TCGplayer market
+// prices from tcgcsv.com. Price-cache/Postgres writes removed; GemReady keeps
+// today's raw price on the card itself.
+// Free catalog pricing — tcgcsv.com republishes TCGplayer's daily price dump
+// as static JSON (no key, no rate limits). We match its Pokemon groups to our
+// sets by name and its products to our cards by collector number, then seed
+// each card's raw with the real TCGplayer market price. Ungraded only —
+// graded comps still come from PriceCharting when its token is set.
+//
+// Never throws: any failure leaves the seeded prices in place.
+
+import type { Card, Product } from "./types.js";
+import { tierForRaw } from "./types.js";
+
+// Sealed heuristics: products without a collector number that look like retail.
+const SEALED_RE = /(booster box|elite trainer box|booster bundle|premium collection|collection box|booster pack|build & battle|tin\b|booster display)/i;
+const packsFor = (name: string) =>
+  /booster box|booster display/i.test(name) ? 36
+  : /elite trainer/i.test(name) ? 9
+  : /bundle/i.test(name) ? 6
+  : /premium collection|collection box/i.test(name) ? 4
+  : /build & battle/i.test(name) ? 4
+  : 1;
+const typeFor = (name: string) =>
+  /booster box|booster display/i.test(name) ? "Booster Box"
+  : /elite trainer/i.test(name) ? "Elite Trainer Box"
+  : /bundle/i.test(name) ? "Booster Bundle"
+  : /premium collection|collection box/i.test(name) ? "Collection"
+  : /build & battle/i.test(name) ? "Build & Battle"
+  : /tin\b/i.test(name) ? "Tin"
+  : /booster pack/i.test(name) ? "Booster Pack"
+  : "Sealed";
+
+// tcgcsv has moved paths before — probe both layouts. Category 3 = Pokemon (EN).
+const BASES = ["https://tcgcsv.com/tcgplayer/3", "https://tcgcsv.com/3"];
+// Category 85 = Pokemon Japan — the only free source for JP exclusives
+// (poncho/costume Pikachus, JP promos), complete with images and prices.
+const JP_BASES = ["https://tcgcsv.com/tcgplayer/85", "https://tcgcsv.com/85"];
+
+async function getJson(url: string): Promise<any | null> {
+  try {
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(30_000),
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; GemReady/1.0)" },
+    });
+    if (!r.ok) {
+      console.error(`tcgcsv: ${url} responded ${r.status}`);
+      return null;
+    }
+    return await r.json();
+  } catch (e) {
+    console.error(`tcgcsv: ${url} failed:`, (e as Error).message);
+    return null;
+  }
+}
+
+/** "087/086" → "87/86"; tolerant of missing totals and letters (TG12, SWSH001). */
+const normNum = (s: string) =>
+  String(s || "")
+    .toLowerCase()
+    .split("/")
+    .map((p) => p.trim().replace(/^0+(?=\w)/, ""))
+    .join("/");
+
+/** Best price row for the base printing: Normal, then Holofoil, then anything. */
+function pickMarket(subs: any[]): number | null {
+  const pick =
+    subs.find((s) => s.subTypeName === "Normal" && s.marketPrice) ??
+    subs.find((s) => s.subTypeName === "Holofoil" && s.marketPrice) ??
+    subs.find((s) => s.marketPrice);
+  const m = pick?.marketPrice;
+  return typeof m === "number" && m > 0 ? m : null;
+}
+
+// ---------------------------------------------------------------------------
+// Set ↔ group matching. The two catalogs name sets differently in systematic
+// ways: era prefixes ("SM - Cosmic Eclipse", "XY - Evolutions"), base-set
+// renames ("Scarlet & Violet" → "SV01: … Base Set"), promo renames ("SWSH
+// Black Star Promos" → "SWSH: Sword & Shield Promo Cards", "McDonald's
+// Collection" → "McDonald's Promos"), "&" vs "and", and accents ("Pokémon
+// GO" → "Pokemon GO"). Both sides are canonicalized; substring fallback only
+// when unambiguous.
+// ---------------------------------------------------------------------------
+
+const deaccent = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+const squash = (s: string) =>
+  deaccent(String(s)).toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\band\b/g, " ").replace(/\s+/g, " ").trim();
+const canonPromos = (s: string) =>
+  s.replace(/\bblack star promos\b/, "promos").replace(/\bpromo cards\b/, "promos").replace(/\bpromo\b$/, "promos");
+const WANT_ALIASES: Record<string, string> = {
+  "bw promos": "black white promos",
+  "dp promos": "diamond pearl promos",
+  "wizards promos": "wotc promos",
+  "expedition base set": "expedition",
+  "best of game": "best of promos",
+  "sun moon": "sm base set",
+  "mcdonald s collection 2021": "mcdonald s 25th anniversary promos",
+  "ex trainer kit latias": "ex trainer kit 1 latias latios",
+  "ex trainer kit latios": "ex trainer kit 1 latias latios",
+  "ex trainer kit 2 plusle": "ex trainer kit 2 plusle minun",
+  "ex trainer kit 2 minun": "ex trainer kit 2 plusle minun",
+};
+
+function groupForms(name: string): string[] {
+  const parts = String(name).split(/\s-\s|:/);
+  const whole = squash(name);
+  const forms = new Set<string>([
+    squash(parts[parts.length - 1]),
+    parts.length > 1 ? squash(parts.slice(1).join(" ")) : "",
+    whole,
+  ]);
+  for (const f of [...forms]) if (f) forms.add(canonPromos(f));
+  // "SWSH: Sword & Shield Promo Cards" also answers to "swsh promos"
+  if (parts.length > 1 && canonPromos(whole).endsWith("promos")) {
+    forms.add(squash(parts[0]) + " promos");
+  }
+  forms.delete("");
+  return [...forms];
+}
+
+function wantForms(setName: string): string[] {
+  const w = squash(setName);
+  const c = canonPromos(w);
+  const out = new Set<string>([
+    w, c, w + " set", w + " base set",
+    w.replace(/^pokemon /, ""), c.replace(/^pokemon /, ""),
+    w.replace(/^hs /, ""),
+    w.replace(/\bcollection\b/, "promos"),
+  ]);
+  for (const f of [...out]) if (WANT_ALIASES[f]) out.add(WANT_ALIASES[f]);
+  out.delete("");
+  return [...out];
+}
+
+export function findGroup(groups: any[], setName: string): any | undefined {
+  const wants = new Set(wantForms(setName));
+  let g = groups.find((x) => groupForms(String(x.name || "")).some((f) => wants.has(f)));
+  if (!g) {
+    const w = squash(setName);
+    const cands = groups.filter((x) => squash(String(x.name || "")).includes(w));
+    if (cands.length === 1) g = cands[0];
+  }
+  return g;
+}
+
+/** Build catalog cards for Japanese sets straight from tcgcsv — name, image,
+ *  collector number, and market price all come from the product feed. Only
+ *  number-bearing products (real cards) are included. Fails safe to []. */
+export async function fetchJapaneseCatalog(): Promise<{ cards: Card[]; sets: { code: string; name: string; released: string }[] }> {
+  const out: { cards: Card[]; sets: { code: string; name: string; released: string }[] } = { cards: [], sets: [] };
+  if (process.env.INCLUDE_JP === "0") return out;
+  let BASE = "";
+  let groups: any[] = [];
+  for (const base of JP_BASES) {
+    const res = await getJson(`${base}/groups`);
+    const rows: any[] = res?.results || [];
+    if (rows.length) { BASE = base; groups = rows; break; }
+  }
+  if (!groups.length) {
+    console.log("tcgcsv-jp: groups unavailable — skipping Japanese catalog");
+    return out;
+  }
+  for (let i = 0; i < groups.length; i += 8) {
+    const batch = groups.slice(i, i + 8);
+    const results = await Promise.all(batch.map(async (g) => {
+      const [prodRes, priceRes] = await Promise.all([
+        getJson(`${BASE}/${g.groupId}/products`),
+        getJson(`${BASE}/${g.groupId}/prices`),
+      ]);
+      return { g, prods: prodRes?.results || [], prices: priceRes?.results || [] };
+    }));
+    for (const { g, prods, prices } of results) {
+      if (!prods.length) continue;
+      const priceByProduct = new Map<number, any[]>();
+      for (const pr of prices) {
+        if (!priceByProduct.has(pr.productId)) priceByProduct.set(pr.productId, []);
+        priceByProduct.get(pr.productId)!.push(pr);
+      }
+      const setName = String(g.name || "").trim();
+      let added = 0;
+      for (const p of prods) {
+        const num = (p.extendedData || []).find((e: any) => e.name === "Number")?.value;
+        if (!num || !p.imageUrl) continue; // cards only, and only with art
+        const market = pickMarket(priceByProduct.get(p.productId) || []);
+        const raw = market !== null ? Math.max(1, Math.round(market)) : 1;
+        const rarity = (p.extendedData || []).find((e: any) => e.name === "Rarity")?.value || "Promo";
+        // Keep the FULL product name — for JP promos the identity lives in the
+        // parenthetical ("Pikachu (Poncho o Kita Pikachu - Rayquaza)"), and
+        // stripping it collapsed every costume variant into plain "Pikachu".
+        out.cards.push({
+          id: "jp-" + p.productId,
+          name: String(p.name).replace(/\s*\(\s*/g, " · ").replace(/\s*\)\s*/g, " ").replace(/\s+/g, " ").trim(),
+          set: setName,
+          num: String(num),
+          rarity: String(rarity),
+          variant: String(rarity),
+          tier: tierForRaw(raw),
+          chase: raw >= 100,
+          langs: ["JP"],
+          raw,
+          chg: 0,
+          img: String(p.imageUrl),
+        });
+        added++;
+      }
+      if (added) out.sets.push({ code: "jp-" + g.groupId, name: setName, released: String(g.publishedOn || "").slice(0, 10) });
+    }
+  }
+  console.log(`tcgcsv-jp: built ${out.cards.length} Japanese cards across ${out.sets.length} sets.`);
+  return out;
+}
+
+export async function applyTcgcsvPrices(cards: Card[]): Promise<{ setsMatched: number; cardsPriced: number; products: Product[] }> {
+  const out: { setsMatched: number; cardsPriced: number; products: Product[] } = { setsMatched: 0, cardsPriced: 0, products: [] };
+  const histRows: { cardId: string; kind: string; value: number }[] = [];
+  let BASE = "";
+  let groups: any[] = [];
+  for (const base of BASES) {
+    const res = await getJson(`${base}/groups`);
+    const rows: any[] = res?.results || [];
+    if (rows.length) {
+      BASE = base;
+      groups = rows;
+      break;
+    }
+  }
+  if (!groups.length) {
+    console.log("tcgcsv: groups unavailable on all known paths — keeping seeded prices");
+    return out;
+  }
+  console.log(`tcgcsv: ${groups.length} groups via ${BASE}`);
+
+  const bySet = new Map<string, Card[]>();
+  for (const c of cards) {
+    const k = c.set.toLowerCase();
+    if (!bySet.has(k)) bySet.set(k, []);
+    bySet.get(k)!.push(c);
+  }
+
+  const groupFor = (setName: string) => findGroup(groups, setName);
+
+  for (const [setKey, setCards] of bySet) {
+    const g = groupFor(setKey);
+    if (!g) continue;
+    const [prodRes, priceRes] = await Promise.all([
+      getJson(`${BASE}/${g.groupId}/products`),
+      getJson(`${BASE}/${g.groupId}/prices`),
+    ]);
+    const prods: any[] = prodRes?.results || [];
+    const prices: any[] = priceRes?.results || [];
+    if (!prods.length || !prices.length) continue;
+    out.setsMatched++;
+
+    const numToProduct = new Map<string, number>();
+    const sealedProds: any[] = [];
+    for (const p of prods) {
+      const num = (p.extendedData || []).find((e: any) => e.name === "Number")?.value;
+      if (num) {
+        numToProduct.set(normNum(num), p.productId);
+        numToProduct.set(normNum(String(num).split("/")[0]), p.productId);
+      } else if (SEALED_RE.test(String(p.name || ""))) {
+        sealedProds.push(p);
+      }
+    }
+    const priceByProduct = new Map<number, any[]>();
+    for (const pr of prices) {
+      if (!priceByProduct.has(pr.productId)) priceByProduct.set(pr.productId, []);
+      priceByProduct.get(pr.productId)!.push(pr);
+    }
+
+    for (const c of setCards) {
+      const pid = numToProduct.get(normNum(c.num)) ?? numToProduct.get(normNum(c.num.split("/")[0]));
+      if (!pid) continue;
+      const market = pickMarket(priceByProduct.get(pid) || []);
+      if (market === null) continue;
+      c.raw = Math.max(1, Math.round(market));
+      c.tier = tierForRaw(c.raw);
+      (c as any).rawSource = "TCGplayer market";
+      (c as any).rawUpdatedAt = new Date().toISOString();
+      histRows.push({ cardId: c.id, kind: "raw", value: c.raw });
+      out.cardsPriced++;
+    }
+
+    // Real sealed prices for the Sealed tab / EV views.
+    const setName = setCards[0]?.set || setKey;
+    for (const p of sealedProds) {
+      const market = pickMarket(priceByProduct.get(p.productId) || []);
+      if (market === null) continue;
+      out.products.push({
+        id: "tcg-" + p.productId,
+        name: String(p.name),
+        set: setName,
+        type: typeFor(String(p.name)),
+        packs: packsFor(String(p.name)),
+        msrp: Math.round(market),
+        market: Math.round(market),
+      });
+    }
+  }
+
+  // Daily history point per priced card — powers real sparklines/curves later.
+  void histRows; // history persistence lives in RipReport; GemReady only needs today's price
+
+  console.log(`tcgcsv: priced ${out.cardsPriced} cards across ${out.setsMatched} sets; ${out.products.length} sealed products from TCGplayer market data.`);
+  return out;
+}
